@@ -1,0 +1,330 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Results - Multi-Modal Trading System{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <h2 class="mb-4">
+        <i class="bi bi-bar-chart-line"></i> Scan Results
+        {% if scan_info %}
+        <small class="text-muted">- {{ scan_info.universe }} universe</small>
+        {% endif %}
+    </h2>
+    
+    {% if no_signals %}
+    <!-- No Signals Found -->
+    <div class="alert alert-warning">
+        <h4><i class="bi bi-info-circle"></i> No Signals Generated</h4>
+        <p class="mb-0">
+            The scan completed, but no high-confidence signals were found. This could mean:
+        </p>
+        <ul class="mt-2">
+            <li>No high-quality patterns detected</li>
+            <li>Signals didn't meet confidence thresholds (≥55%)</li>
+            <li>Market conditions unfavorable (gate checks failed)</li>
+            <li>Risk-reward ratios below minimum (1.5:1)</li>
+        </ul>
+        <p class="mb-0">
+            <strong>What to do:</strong> Try scanning again later or with a different universe. The system is being selective to protect you from bad trades!
+        </p>
+    </div>
+    
+    <div class="text-center mt-4">
+        <a href="/" class="btn btn-primary btn-lg">
+            <i class="bi bi-arrow-left"></i> Run Another Scan
+        </a>
+    </div>
+    
+    {% else %}
+    
+    <!-- Summary Stats -->
+    <div class="row mb-4">
+        <div class="col-md-2">
+            <div class="stats-card">
+                <div class="stats-number">{{ signals_with_charts|length }}</div>
+                <div class="stats-label">Total Signals</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stats-card" style="background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);">
+                <div class="stats-number">
+                    {{ signals_with_charts|selectattr('signal.recommendation', 'equalto', 'STRONG_BUY')|list|length }}
+                </div>
+                <div class="stats-label">Strong Buy</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stats-card" style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);">
+                <div class="stats-number">
+                    {{ signals_with_charts|selectattr('signal.recommendation', 'equalto', 'BUY')|list|length }}
+                </div>
+                <div class="stats-label">Buy</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stats-card" style="background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);">
+                <div class="stats-number">
+                    {{ signals_with_charts|selectattr('signal.recommendation', 'equalto', 'WEAK_BUY')|list|length }}
+                </div>
+                <div class="stats-label">Weak Buy</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stats-card" style="background: linear-gradient(135deg, #6C757D 0%, #5a6268 100%);">
+                <div class="stats-number">
+                    {{ signals_with_charts|selectattr('signal.recommendation', 'equalto', 'HOLD')|list|length }}
+                </div>
+                <div class="stats-label">Hold</div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="stats-card" style="background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);">
+                <div class="stats-number">
+                    {{ "%.1f"|format((signals_with_charts|map(attribute='signal.final_confidence')|sum / signals_with_charts|length * 100) if signals_with_charts|length > 0 else 0) }}%
+                </div>
+                <div class="stats-label">Avg Confidence</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filtering Options -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="bi bi-funnel"></i> Filter Signals
+                    </h5>
+                    <div class="row g-3">
+                        <div class="col-md-3">
+                            <label for="filterConfidence" class="form-label">Minimum Confidence:</label>
+                            <input type="range" class="form-range" id="filterConfidence" min="50" max="90" value="55" step="5">
+                            <div class="text-center"><strong><span id="confidenceValue">55</span>%</strong></div>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filterRecommendation" class="form-label">Recommendation:</label>
+                            <select class="form-select" id="filterRecommendation">
+                                <option value="all" selected>All Signals</option>
+                                <option value="STRONG_BUY">Strong Buy Only</option>
+                                <option value="BUY">Buy & Strong Buy</option>
+                                <option value="WEAK_BUY">Weak Buy+</option>
+                                <option value="HOLD">HOLD Only</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="filterTimeframe" class="form-label">Timeframe:</label>
+                            <select class="form-select" id="filterTimeframe">
+                                <option value="all" selected>All Timeframes</option>
+                                <option value="1W">Weekly (1W)</option>
+                                <option value="1D">Daily (1D)</option>
+                                <option value="4H">4-Hour</option>
+                                <option value="1H">Hourly (1H)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">&nbsp;</label>
+                            <button class="btn btn-primary w-100" onclick="applyFilters()">
+                                <i class="bi bi-filter"></i> Apply Filters
+                            </button>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            Showing <strong id="filteredCount">{{ signals_with_charts|length }}</strong> of <strong>{{ signals_with_charts|length }}</strong> signals
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Quick Action Buttons -->
+    <div class="text-center mb-4">
+        <a href="/" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-left"></i> New Scan
+        </a>
+        <button class="btn btn-outline-success" onclick="window.print()">
+            <i class="bi bi-printer"></i> Print Report
+        </button>
+    </div>
+    
+    <!-- Signals -->
+    {% for item in signals_with_charts %}
+    <div class="signal-card {{ item.signal.recommendation.lower().replace('_', '-') }}" 
+         data-confidence="{{ item.signal.final_confidence }}"
+         data-recommendation="{{ item.signal.recommendation }}"
+         data-timeframe="{{ item.signal.pattern_type.split('_')[-1] if '_' in item.signal.pattern_type else '1D' }}">
+        <div class="row">
+            <div class="col-md-8">
+                <h4>
+                    <strong>{{ item.signal.ticker }}</strong> - {{ item.signal.company_name }}
+                    <span class="badge bg-{{ 'success' if item.signal.recommendation == 'STRONG_BUY' else 'primary' if item.signal.recommendation == 'BUY' else 'warning' if item.signal.recommendation == 'WEAK_BUY' else 'secondary' }} ms-2">
+                        {{ item.signal.recommendation }}
+                    </span>
+                    {% if session.get('multitimeframe') %}
+                    <span class="badge bg-info ms-1">
+                        <i class="bi bi-clock"></i> Multi-TF
+                    </span>
+                    {% endif %}
+                </h4>
+                
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Pattern:</strong> {{ item.signal.pattern_type }}</p>
+                        <p class="mb-1"><strong>Entry:</strong> ₹{{ "%.2f"|format(item.signal.entry_price) }}</p>
+                        <p class="mb-1"><strong>Target:</strong> ₹{{ "%.2f"|format(item.signal.target_price) }} 
+                            <span class="text-success">(+{{ "%.1f"|format(((item.signal.target_price/item.signal.entry_price-1)*100)) }}%)</span>
+                        </p>
+                        <p class="mb-1"><strong>Stop Loss:</strong> ₹{{ "%.2f"|format(item.signal.stop_loss) }}
+                            <span class="text-danger">({{ "%.1f"|format(((item.signal.stop_loss/item.signal.entry_price-1)*100)) }}%)</span>
+                        </p>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="mb-1"><strong>Confidence:</strong> {{ "%.1f"|format(item.signal.final_confidence * 100) }}%</p>
+                        <p class="mb-1"><strong>R:R Ratio:</strong> {{ "%.2f"|format(item.signal.risk_reward_ratio) }}:1</p>
+                        <p class="mb-1"><strong>Position Size:</strong> {{ "%.2f"|format(item.signal.position_size_pct) }}%</p>
+                        <p class="mb-1">
+                            <strong>Sentiment:</strong>
+                            <span class="badge bg-{{ 'success' if item.signal.sentiment_raw > 0 else 'danger' }}">
+                                {{ item.signal.sentiment_label }} ({{ item.signal.num_articles }} articles)
+                            </span>
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Confidence Bar -->
+                <div class="mt-2">
+                    <small class="text-muted">Confidence Score:</small>
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" style="width: {{ item.signal.final_confidence * 100 }}%; 
+                             background: {% if item.signal.final_confidence >= 0.7 %}#4CAF50{% elif item.signal.final_confidence >= 0.6 %}#2196F3{% else %}#FF9800{% endif %};">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Individual Scores -->
+                <div class="row mt-3">
+                    <div class="col-4 text-center">
+                        <small class="text-muted">Pattern</small>
+                        <div class="fw-bold">{{ "%.1f"|format(item.signal.pattern_score * 100) }}%</div>
+                    </div>
+                    <div class="col-4 text-center">
+                        <small class="text-muted">Sentiment</small>
+                        <div class="fw-bold">{{ "%.1f"|format(item.signal.sentiment_score * 100) }}%</div>
+                    </div>
+                    <div class="col-4 text-center">
+                        <small class="text-muted">Prediction</small>
+                        <div class="fw-bold">{{ "%.1f"|format(item.signal.prediction_score * 100) }}%</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4 text-end">
+                <div class="text-center">
+                    <div class="display-6">{{ "%.1f"|format(item.signal.predicted_return * 100) }}%</div>
+                    <small class="text-muted">Expected Return</small>
+                </div>
+                <div class="mt-3 text-center">
+                    <div class="h5">{{ "%.0f"|format(item.signal.probability_gain * 100) }}%</div>
+                    <small class="text-muted">Probability of Gain</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Chart -->
+        <div class="mt-4">
+            {% if item.chart %}
+            <button class="btn btn-sm btn-outline-primary" type="button" data-bs-toggle="collapse" 
+                    data-bs-target="#chart-{{ loop.index }}">
+                <i class="bi bi-graph-up"></i> Show Chart
+            </button>
+            
+            <div class="collapse" id="chart-{{ loop.index }}">
+                <div class="mt-3">
+                    {{ item.chart | safe }}
+                </div>
+            </div>
+            {% else %}
+            <small class="text-muted">
+                <i class="bi bi-info-circle"></i> Chart not generated (top 50 signals only have charts for performance)
+            </small>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+    
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    @media print {
+        .btn, .collapse, footer, nav { display: none !important; }
+        .signal-card { page-break-inside: avoid; }
+    }
+    .signal-card.hidden {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Update confidence value display
+    document.getElementById('filterConfidence').addEventListener('input', function() {
+        document.getElementById('confidenceValue').textContent = this.value;
+    });
+    
+    // Apply filters function
+    function applyFilters() {
+        const minConfidence = parseFloat(document.getElementById('filterConfidence').value) / 100;
+        const filterRec = document.getElementById('filterRecommendation').value;
+        const filterTF = document.getElementById('filterTimeframe').value;
+        
+        const signals = document.querySelectorAll('.signal-card');
+        let visibleCount = 0;
+        
+        signals.forEach(signal => {
+            const confidence = parseFloat(signal.getAttribute('data-confidence'));
+            const recommendation = signal.getAttribute('data-recommendation');
+            const timeframe = signal.getAttribute('data-timeframe');
+            
+            let show = true;
+            
+            // Confidence filter
+            if (confidence < minConfidence) {
+                show = false;
+            }
+            
+            // Recommendation filter
+            if (filterRec !== 'all') {
+                if (filterRec === 'STRONG_BUY' && recommendation !== 'STRONG_BUY') {
+                    show = false;
+                } else if (filterRec === 'BUY' && !['BUY', 'STRONG_BUY'].includes(recommendation)) {
+                    show = false;
+                } else if (filterRec === 'WEAK_BUY' && !['WEAK_BUY', 'BUY', 'STRONG_BUY'].includes(recommendation)) {
+                    show = false;
+                } else if (filterRec === 'HOLD' && recommendation !== 'HOLD') {
+                    show = false;
+                }
+            }
+            
+            // Timeframe filter  
+            if (filterTF !== 'all' && timeframe !== filterTF) {
+                show = false;
+            }
+            
+            if (show) {
+                signal.classList.remove('hidden');
+                visibleCount++;
+            } else {
+                signal.classList.add('hidden');
+            }
+        });
+        
+        document.getElementById('filteredCount').textContent = visibleCount;
+    }
+</script>
+{% endblock %}
+

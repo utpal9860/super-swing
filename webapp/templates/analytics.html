@@ -1,0 +1,478 @@
+{% extends "base.html" %}
+
+{% block title %}Strategy Analytics - SuperTrend Trading{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h2>Strategy Performance & Comparison</h2>
+        <div class="header-actions">
+            <button class="btn btn-secondary" onclick="syncPaperTrades()">
+                🔄 Sync Paper Trades
+            </button>
+            <button class="btn btn-secondary" onclick="refreshData()">
+                ↻ Refresh
+            </button>
+        </div>
+    </div>
+
+        <!-- Summary Cards -->
+        <div class="summary-section">
+            <div class="summary-card">
+                <h3>Total Trades</h3>
+                <div class="summary-Request ID: f3d4c97a-061b-4f55-80a0-13cab1aae858
+                ConnectError: [internal] Serialization error in aiserver.v1.StreamUnifiedChatRequestWithTools
+                    at vscode-file://vscode-app/c:/Users/Utpal.Dutt/AppData/Local/Programs/cursor/resources/app/out/vs/workbench/workbench.desktop.main.js:7337:373472" id="total-trades">0</div>
+                <div class="summary-label">All Strategies</div>
+            </div>
+            <div class="summary-card">
+                <h3>Overall Win Rate</h3>
+                <div class="summary-value" id="overall-win-rate">0%</div>
+                <div class="summary-label">Winning / Total</div>
+            </div>
+            <div class="summary-card">
+                <h3>Total P&L</h3>
+                <div class="summary-value" id="total-pl">₹0</div>
+                <div class="summary-label">Net Profit/Loss</div>
+            </div>
+            <div class="summary-card">
+                <h3>Best Strategy</h3>
+                <div class="summary-value" id="best-strategy">-</div>
+                <div class="summary-label">By Total Return</div>
+            </div>
+        </div>
+
+        <!-- Strategy Comparison Table -->
+        <div class="card">
+            <h3>📈 Strategy Comparison</h3>
+            <div id="comparison-table"></div>
+        </div>
+
+        <!-- Leaderboards -->
+        <div class="leaderboard-grid">
+            <div class="card">
+                <h4>🏆 Top by Profit</h4>
+                <div id="leaderboard-profit"></div>
+            </div>
+            <div class="card">
+                <h4>🎯 Top by Win Rate</h4>
+                <div id="leaderboard-winrate"></div>
+            </div>
+            <div class="card">
+                <h4>💰 Top by Profit Factor</h4>
+                <div id="leaderboard-pf"></div>
+            </div>
+            <div class="card">
+                <h4>📊 Top by Sharpe Ratio</h4>
+                <div id="leaderboard-sharpe"></div>
+            </div>
+        </div>
+
+        <!-- Recent Trades -->
+        <div class="card">
+            <h3>🕐 Recent Trades (Last 30 Days)</h3>
+            <div class="filter-bar">
+                <select id="strategy-filter" onchange="loadRecentTrades()">
+                    <option value="">All Strategies</option>
+                </select>
+            </div>
+            <div id="recent-trades-table"></div>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toast-container"></div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        // Check auth (optional - comment out if no login system)
+        // requireAuth();
+
+        let strategiesData = [];
+
+        // Load all data on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadAnalyticsData();
+        });
+
+        async function loadAnalyticsData() {
+            try {
+                // Load strategy comparison
+                await loadStrategyComparison();
+                
+                // Load leaderboard
+                await loadLeaderboard();
+                
+                // Load recent trades
+                await loadRecentTrades();
+                
+            } catch (error) {
+                console.error('Error loading analytics:', error);
+                showToast('Error loading analytics data', 'error');
+            }
+        }
+
+        async function loadStrategyComparison() {
+            try {
+                const response = await fetch('/api/analytics/comparison');
+                const data = await response.json();
+                
+                if (data.success && data.strategies && data.strategies.length > 0) {
+                    strategiesData = data.strategies;
+                    displayStrategyComparison(data.strategies);
+                    updateSummary(data.strategies);
+                    
+                    // Populate strategy filter dropdown
+                    const filterSelect = document.getElementById('strategy-filter');
+                    data.strategies.forEach(s => {
+                        const option = document.createElement('option');
+                        option.value = s.strategy_name;
+                        option.textContent = formatStrategyName(s.strategy_name);
+                        filterSelect.appendChild(option);
+                    });
+                } else {
+                    document.getElementById('comparison-table').innerHTML = 
+                        '<p class="no-data">No performance data available. Complete some trades first!</p>';
+                }
+            } catch (error) {
+                console.error('Error loading comparison:', error);
+                showToast('Error loading strategy comparison', 'error');
+            }
+        }
+
+        function displayStrategyComparison(strategies) {
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Strategy</th>
+                            <th>Trades</th>
+                            <th>Win Rate</th>
+                            <th>Total P&L</th>
+                            <th>Avg Return</th>
+                            <th>Profit Factor</th>
+                            <th>Expectancy</th>
+                            <th>Best Trade</th>
+                            <th>Worst Trade</th>
+                            <th>Avg Hold</th>
+                            <th>Max DD</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            strategies.forEach(s => {
+                const plClass = s.total_profit_loss > 0 ? 'text-success' : 'text-danger';
+                const winRateClass = s.win_rate >= 60 ? 'text-success' : s.win_rate >= 50 ? 'text-warning' : 'text-danger';
+                const pfClass = s.profit_factor >= 2 ? 'text-success' : s.profit_factor >= 1 ? 'text-warning' : 'text-danger';
+                
+                html += `
+                    <tr>
+                        <td><strong>${formatStrategyName(s.strategy_name)}</strong></td>
+                        <td>${s.total_trades}</td>
+                        <td class="${winRateClass}"><strong>${s.win_rate.toFixed(1)}%</strong></td>
+                        <td class="${plClass}"><strong>₹${s.total_profit_loss.toLocaleString('en-IN', {maximumFractionDigits: 0})}</strong></td>
+                        <td class="${s.avg_return > 0 ? 'text-success' : 'text-danger'}">${s.avg_return.toFixed(2)}%</td>
+                        <td class="${pfClass}">${s.profit_factor.toFixed(2)}x</td>
+                        <td>₹${s.expectancy.toFixed(0)}</td>
+                        <td class="text-success">+${s.best_trade.toFixed(1)}%</td>
+                        <td class="text-danger">${s.worst_trade.toFixed(1)}%</td>
+                        <td>${s.avg_holding_days.toFixed(0)} days</td>
+                        <td class="text-danger">${s.max_drawdown ? s.max_drawdown.toFixed(1) : '0.0'}%</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('comparison-table').innerHTML = html;
+        }
+
+        function updateSummary(strategies) {
+            const totalTrades = strategies.reduce((sum, s) => sum + s.total_trades, 0);
+            const totalWins = strategies.reduce((sum, s) => sum + s.winning_trades, 0);
+            const totalPL = strategies.reduce((sum, s) => sum + s.total_profit_loss, 0);
+            const overallWinRate = totalTrades > 0 ? (totalWins / totalTrades * 100) : 0;
+            
+            // Find best strategy by total P&L
+            const bestStrategy = strategies.reduce((best, s) => 
+                s.total_profit_loss > best.total_profit_loss ? s : best
+            , strategies[0]);
+            
+            document.getElementById('total-trades').textContent = totalTrades;
+            document.getElementById('overall-win-rate').textContent = overallWinRate.toFixed(1) + '%';
+            document.getElementById('total-pl').textContent = '₹' + totalPL.toLocaleString('en-IN', {maximumFractionDigits: 0});
+            document.getElementById('total-pl').className = 'summary-value ' + (totalPL > 0 ? 'text-success' : 'text-danger');
+            document.getElementById('best-strategy').textContent = formatStrategyName(bestStrategy.strategy_name);
+        }
+
+        async function loadLeaderboard() {
+            try {
+                const response = await fetch('/api/analytics/leaderboard');
+                const data = await response.json();
+                
+                if (data.success && data.leaderboard) {
+                    displayLeaderboard('profit', data.leaderboard.by_profit);
+                    displayLeaderboard('winrate', data.leaderboard.by_win_rate);
+                    displayLeaderboard('pf', data.leaderboard.by_profit_factor);
+                    displayLeaderboard('sharpe', data.leaderboard.by_sharpe);
+                }
+            } catch (error) {
+                console.error('Error loading leaderboard:', error);
+            }
+        }
+
+        function displayLeaderboard(type, items) {
+            const containerId = `leaderboard-${type}`;
+            const container = document.getElementById(containerId);
+            
+            if (!items || items.length === 0) {
+                container.innerHTML = '<p class="no-data">Not enough data</p>';
+                return;
+            }
+            
+            let html = '<ol class="leaderboard-list">';
+            
+            items.forEach((item, index) => {
+                const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '';
+                let valueDisplay = '';
+                
+                if (type === 'profit') {
+                    valueDisplay = `₹${item.total_profit_loss.toLocaleString('en-IN', {maximumFractionDigits: 0})}`;
+                } else if (type === 'winrate') {
+                    valueDisplay = `${item.win_rate.toFixed(1)}%`;
+                } else if (type === 'pf') {
+                    valueDisplay = `${item.profit_factor.toFixed(2)}x`;
+                } else if (type === 'sharpe') {
+                    valueDisplay = item.sharpe_ratio.toFixed(2);
+                }
+                
+                html += `
+                    <li>
+                        ${medal} <strong>${formatStrategyName(item.strategy_name)}</strong>
+                        <span class="leaderboard-value">${valueDisplay}</span>
+                        <small>(${item.total_trades} trades)</small>
+                    </li>
+                `;
+            });
+            
+            html += '</ol>';
+            container.innerHTML = html;
+        }
+
+        async function loadRecentTrades() {
+            const strategy = document.getElementById('strategy-filter').value;
+            
+            try {
+                const url = strategy 
+                    ? `/api/analytics/trades/recent/30?strategy=${strategy}`
+                    : '/api/analytics/trades/recent/30';
+                    
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success && data.trades && data.trades.length > 0) {
+                    displayRecentTrades(data.trades);
+                } else {
+                    document.getElementById('recent-trades-table').innerHTML = 
+                        '<p class="no-data">No recent trades found</p>';
+                }
+            } catch (error) {
+                console.error('Error loading recent trades:', error);
+            }
+        }
+
+        function displayRecentTrades(trades) {
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Symbol</th>
+                            <th>Strategy</th>
+                            <th>Entry</th>
+                            <th>Exit</th>
+                            <th>P&L</th>
+                            <th>Return</th>
+                            <th>Hold Days</th>
+                            <th>Exit Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            trades.forEach(t => {
+                const plClass = t.profit_loss > 0 ? 'text-success' : 'text-danger';
+                
+                html += `
+                    <tr>
+                        <td>${new Date(t.exit_date).toLocaleDateString()}</td>
+                        <td><strong>${t.symbol}</strong></td>
+                        <td>${formatStrategyName(t.strategy)}</td>
+                        <td>₹${t.entry_price.toFixed(2)}</td>
+                        <td>₹${t.exit_price.toFixed(2)}</td>
+                        <td class="${plClass}"><strong>₹${t.profit_loss.toFixed(0)}</strong></td>
+                        <td class="${plClass}"><strong>${t.profit_loss_pct > 0 ? '+' : ''}${t.profit_loss_pct.toFixed(2)}%</strong></td>
+                        <td>${t.holding_days}</td>
+                        <td>${formatExitReason(t.exit_reason)}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('recent-trades-table').innerHTML = html;
+        }
+
+        async function syncPaperTrades() {
+            if (!confirm('Sync closed trades from paper trading to analytics?')) return;
+            
+            try {
+                const response = await fetch('/api/analytics/sync-from-paper-trades', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast(`Synced ${data.synced_count} trades`, 'success');
+                    refreshData();
+                } else {
+                    showToast(data.error || 'Sync failed', 'error');
+                }
+            } catch (error) {
+                showToast('Error syncing trades', 'error');
+            }
+        }
+
+        function refreshData() {
+            loadAnalyticsData();
+            showToast('Data refreshed', 'info');
+        }
+
+        function formatStrategyName(strategy) {
+            const names = {
+                'momentum_btst': '⚡ Momentum BTST',
+                'swing_supertrend': '📈 Swing SuperTrend',
+                'mean_reversion': '🔄 Mean Reversion',
+                'pullback_entry': '🔵 Pullback Entry'
+            };
+            return names[strategy] || strategy;
+        }
+
+        function formatExitReason(reason) {
+            const reasons = {
+                'target': '🎯 Target',
+                'stop_loss': '🛑 Stop Loss',
+                'time_stop': '⏰ Time',
+                'manual': '👤 Manual',
+                'early_exit': '⚠️ Early Exit'
+            };
+            return reasons[reason] || reason;
+        }
+
+        // Toast notification system
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            
+            const container = document.getElementById('toast-container');
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 100);
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+
+    <style>
+        .leaderboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+
+        .leaderboard-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .leaderboard-list li {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .leaderboard-list li:last-child {
+            border-bottom: none;
+        }
+
+        .leaderboard-value {
+            margin-left: auto;
+            font-weight: bold;
+            color: #2563eb;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-style: italic;
+        }
+
+        .filter-bar {
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .filter-bar select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 15px 20px;
+                background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#17a2b8'};
+                color: white;
+                border-radius: 8px;
+                z-index: 10000;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function syncPaperTrades() {
+            showToast('Feature coming soon', 'info');
+        }
+
+        function refreshData() {
+            window.location.reload();
+        }
+
+        // Show placeholder message
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('comparison-table').innerHTML = '<p class="no-data">No data available yet. Run backtests or complete trades to see analytics.</p>';
+        });
+    </script>
+{% endblock %}

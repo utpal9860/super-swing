@@ -1,0 +1,67 @@
+================================================================================
+CURRENT IPO LIST STATUS
+================================================================================
+
+CURRENT COUNT: 199 stocks (2019-2025)
+
+Breakdown:
+  2019: 18 IPOs
+  2020: 25 IPOs
+  2021: 57 IPOs  
+  2022: 24 IPOs
+  2023: 21 IPOs
+  2024: 55 IPOs  ← INCOMPLETE! Should be 300+
+  2025: 10 IPOs
+
+ISSUE: 2024 list is very incomplete
+- Current: 55 stocks
+- Expected: 300+ stocks
+- Missing: ~245 stocks
+
+================================================================================
+HOW TO ADD MISSING STOCKS
+================================================================================
+
+Option 1: Manual Addition (Recommended for accuracy)
+-----------------------------------------------------
+1. Open: ADD_MISSING_IPOS_HERE.txt
+2. Add missing stock symbols (one per line)
+3. Save file
+4. Run: python update_ipo_list.py
+
+Option 2: Fetch from Data Source
+--------------------------------
+You can get complete IPO data from:
+- ChittorgarH.com (ipo-list-in-india-2024)
+- MoneyControl IPO section  
+- NSE IPO calendar
+- BSE listings
+
+Copy symbols and paste into ADD_MISSING_IPOS_HERE.txt
+
+Option 3: Use Excel/CSV
+----------------------
+If you have IPO data in Excel:
+1. Export symbol column to text
+2. Paste into ADD_MISSING_IPOS_HERE.txt
+3. Run update script
+
+================================================================================
+CURRENT FILES
+================================================================================
+- ipo_stocks_2019_2025_complete.txt  → Current list (199 stocks)
+- ipo_stocks_by_year.txt             → Organized by year
+- ADD_MISSING_IPOS_HERE.txt          → Add missing stocks here
+- update_ipo_list.py                 → Run after adding stocks
+
+================================================================================
+NEXT STEPS
+================================================================================
+1. Get complete 2024 IPO list from ChittorgarH or MoneyControl
+2. Add missing ~245 stocks to ADD_MISSING_IPOS_HERE.txt
+3. Run: python update_ipo_list.py
+4. Then run analysis with complete data
+
+Note: Having complete data is CRITICAL for accurate strategy backtesting
+================================================================================
+

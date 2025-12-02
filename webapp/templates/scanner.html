@@ -1,0 +1,3035 @@
+{% extends "base.html" %}
+
+{% block title %}Weekly Scanner - SuperTrend Trading{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h2>🔍 Weekly Signal Scanner</h2>
+        <p class="subtitle">Scan quality stocks for fresh SuperTrend buy signals</p>
+    </div>
+
+    <!-- Scanner Controls -->
+    <div class="card">
+        <div class="card-header">
+            <h3>⚙️ Scanner Configuration</h3>
+        </div>
+        <div class="card-body">
+            <form id="scanner-form" class="scanner-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="strategy">📊 Trading Strategy</label>
+                        <select id="strategy" name="strategy" required>
+                            <option value="momentum_btst">⚡ Momentum BTST (1-3 days) - 34.9% avg return</option>
+                            <option value="swing_supertrend">📈 Swing SuperTrend (7-30 days) - 13.2% avg return</option>
+                            <option value="mean_reversion">🔄 Mean Reversion (2-5 days) - 25.5% avg return</option>
+                            <option value="pullback_entry">🔵 Pullback Entry (5-30 days) - ~60-65% win rate</option>
+                            <option value="swing_breakout_india">🇮🇳 Swing Breakout India (1-7 days) - NSE/BSE breakouts</option>
+                            <option value="all">🌟 All Strategies</option>
+                        </select>
+                        <small>Choose based on your holding preference</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="top_n">Top N Stocks</label>
+                        <input type="number" id="top_n" name="top_n" value="50" min="10" max="200" required>
+                        <small>Number of stocks to scan from watchlist</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="lookback_days">Lookback Days</label>
+                        <input type="number" id="lookback_days" name="lookback_days" value="14" min="7" max="60" required>
+                        <small>Days to look back for signals</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="capital">Trading Capital (₹)</label>
+                        <input type="number" id="capital" name="capital" value="100000" min="10000" step="1000" required>
+                        <small>Available capital for position sizing</small>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary btn-lg" id="scan-btn">
+                        🔍 Run Scanner
+                    </button>
+                    <button type="button" class="btn btn-success btn-lg" onclick="showAIScanModal()" style="margin-left: 10px;">
+                        🤖 AI Stock Finder
+                    </button>
+                    <button type="button" class="btn btn-lg" onclick="showAIFnoModal()" style="margin-left: 10px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                        🎯 AI F&O Finder
+                    </button>
+                    <button type="button" class="btn btn-lg" onclick="showWatchlistModal()" style="margin-left: 10px; background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); color: white;">
+                        ⭐ My Watchlist AI
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="loadLatestSignals(document.getElementById('strategy').value)">
+                        📋 Load Latest Results
+                    </button>
+                </div>
+                
+                <!-- Quick Load Buttons -->
+                <div style="margin-top: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <small style="flex: 100%; color: #888;">Quick Load:</small>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="loadLatestSignals('momentum_btst')">⚡ BTST</button>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="loadLatestSignals('swing_supertrend')">📈 Swing</button>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="loadLatestSignals('mean_reversion')">🔄 Reversion</button>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="loadLatestSignals('pullback_entry')">🔵 Pullback</button>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="loadLatestSignals('swing_breakout_india')">🇮🇳 Breakout</button>
+                    <button type="button" class="btn btn-sm btn-outline" onclick="loadLatestSignals('all')">🌟 All</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Scanner Status -->
+    <div id="scanner-status" class="card" style="display: none;">
+        <div class="card-body">
+            <div class="progress-container">
+                <div class="progress-header">
+                    <h4>🔄 Scanner Running...</h4>
+                    <span id="scanner-progress-text">Initializing...</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="scanner-progress-fill" style="width: 0%"></div>
+                </div>
+                <p class="progress-details" id="scanner-details">
+                    Signals found: <strong id="signals-count">0</strong>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Summary -->
+    <div id="results-summary" class="cards-grid" style="display: none;">
+        <div class="card summary-card">
+            <div class="card-icon">📊</div>
+            <div class="card-content">
+                <h3>Signals Found</h3>
+                <p class="card-value" id="summary-signals">0</p>
+                <span class="card-detail" id="summary-date">-</span>
+            </div>
+        </div>
+
+        <div class="card summary-card">
+            <div class="card-icon">💰</div>
+            <div class="card-content">
+                <h3>Total Investment</h3>
+                <p class="card-value" id="summary-investment">₹0</p>
+                <span class="card-detail" id="summary-capital-used">0% capital</span>
+            </div>
+        </div>
+
+        <div class="card summary-card">
+            <div class="card-icon">⭐</div>
+            <div class="card-content">
+                <h3>Avg Quality Score</h3>
+                <p class="card-value" id="summary-avg-score">0</p>
+                <span class="card-detail">Out of 10</span>
+            </div>
+        </div>
+
+        <div class="card summary-card">
+            <div class="card-icon">🎯</div>
+            <div class="card-content">
+                <h3>Risk:Reward</h3>
+                <p class="card-value" id="summary-rr">0:1</p>
+                <span class="card-detail">Average R:R ratio</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scanner Results -->
+    <div id="scanner-results" class="card table-card" style="display: none;">
+        <div class="card-header">
+            <h3>📈 Trade Suggestions</h3>
+            <div class="card-actions">
+                <button class="btn btn-success" onclick="addAllTrades()">➕ Add All to Portfolio</button>
+                <button class="btn btn-info" onclick="exportResults()">📥 Export CSV</button>
+                <button class="btn btn-danger" onclick="clearResults()">🗑️ Clear Results</button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive" id="results-table">
+                <!-- Table will be inserted here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI Scanner Modal -->
+<div class="modal-overlay" id="ai-scan-modal" style="display: none;">
+    <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-header">
+            <h3>🤖 AI Stock Finder</h3>
+            <button class="btn-close" onclick="closeAIScanModal()">×</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 20px; color: var(--text-secondary);">
+                Let AI analyze the market and recommend stocks based on your strategy!
+            </p>
+            <form id="ai-scan-form" onsubmit="runAIScan(event)">
+                <div class="form-group">
+                    <label for="ai-strategy">📊 Strategy</label>
+                    <select id="ai-strategy" class="form-control" required>
+                        <option value="momentum_btst">⚡ Momentum BTST</option>
+                        <option value="swing_supertrend">📈 Swing SuperTrend</option>
+                        <option value="mean_reversion">🔄 Mean Reversion</option>
+                        <option value="pullback_entry">🔵 Pullback Entry</option>
+                        <option value="swing_breakout_india">🇮🇳 Swing Breakout India</option>
+                        <option value="improved_btst">🚀 Improved BTST</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="ai-market-cap">💰 Market Cap</label>
+                    <select id="ai-market-cap" class="form-control">
+                        <option value="Large Cap">Large Cap (Safer)</option>
+                        <option value="Mid Cap">Mid Cap (Balanced)</option>
+                        <option value="Small Cap">Small Cap (Higher Risk)</option>
+                        <option value="All">All (Mixed)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="ai-sector">🏭 Sector (Optional)</label>
+                    <select id="ai-sector" class="form-control">
+                        <option value="">All Sectors</option>
+                        <option value="IT">Information Technology</option>
+                        <option value="Banking">Banking & Financial Services</option>
+                        <option value="Pharma">Pharmaceuticals</option>
+                        <option value="Auto">Automobile</option>
+                        <option value="FMCG">FMCG</option>
+                        <option value="Energy">Oil & Gas / Energy</option>
+                        <option value="Infra">Infrastructure</option>
+                        <option value="Telecom">Telecommunications</option>
+                        <option value="Metal">Metals & Mining</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="ai-max-stocks">🎯 Number of Stocks</label>
+                    <input type="number" id="ai-max-stocks" class="form-control" value="5" min="1" max="20" required>
+                    <small>AI will recommend this many stocks (1-20)</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeAIScanModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">🤖 Find Stocks with AI</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- AI F&O Scanner Modal -->
+<div class="modal-overlay" id="ai-fno-modal" style="display: none;">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+            <h3>🎯 AI F&O Finder</h3>
+            <button class="btn-close" onclick="closeAIFnoModal()" style="color: white;">×</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 20px; color: var(--text-secondary);">
+                Get AI-powered Futures & Options trade recommendations with entry/exit levels, Greeks analysis, and data freshness!
+            </p>
+            <form id="ai-fno-form" onsubmit="runAIFnoScan(event)">
+                <div class="form-group">
+                    <label for="fno-trade-type">📊 Trade Type</label>
+                    <select id="fno-trade-type" class="form-control" required>
+                        <option value="call_options">📈 Call Options (Bullish)</option>
+                        <option value="put_options">📉 Put Options (Bearish)</option>
+                        <option value="futures">⚡ Futures</option>
+                        <option value="mixed">🎲 Mixed Strategy (Spreads/Hedges)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="fno-index">🎯 Focus</label>
+                    <select id="fno-index" class="form-control" required>
+                        <option value="NIFTY">NIFTY 50</option>
+                        <option value="BANKNIFTY">BANKNIFTY</option>
+                        <option value="Stock">Stock Options (AI will select)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="fno-strategy">⏰ Strategy</label>
+                    <select id="fno-strategy" class="form-control" required>
+                        <option value="intraday">⚡ Intraday (Exit today)</option>
+                        <option value="swing">📅 Swing (2-5 days)</option>
+                        <option value="hedging">🛡️ Hedging (Protection)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="fno-risk">⚠️ Risk Appetite</label>
+                    <select id="fno-risk" class="form-control" required>
+                        <option value="low">🟢 Low (1-2% risk, ITM options)</option>
+                        <option value="medium" selected>🟡 Medium (2-3% risk, ATM options)</option>
+                        <option value="high">🔴 High (3-5% risk, OTM options)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="fno-max-trades">🎯 Number of Trades</label>
+                    <input type="number" id="fno-max-trades" class="form-control" value="3" min="1" max="5" required>
+                    <small>AI will recommend this many F&O trades (1-5, max 3 recommended)</small>
+                </div>
+                <div style="background: rgba(255, 152, 0, 0.1); padding: 10px; border-radius: 8px; margin-top: 15px;">
+                    <small style="color: var(--text-secondary);">
+                        ⚠️ <strong>F&O trading involves high risk.</strong> AI provides analysis based on available data. 
+                        Always verify recommendations and manage risk carefully.
+                    </small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeAIFnoModal()">Cancel</button>
+                    <button type="submit" class="btn" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                        🎯 Find F&O Trades
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- My Watchlist AI Modal -->
+<div class="modal-overlay" id="watchlist-modal" style="display: none;">
+    <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-header" style="background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); color: white;">
+            <h3>⭐ My Watchlist AI Analyzer</h3>
+            <button class="btn-close" onclick="closeWatchlistModal()" style="color: white;">×</button>
+        </div>
+        <div class="modal-body">
+            <p style="margin-bottom: 20px; color: var(--text-secondary);">
+                Get deep AI analysis for YOUR specific stocks! Enter the symbols you're interested in and get comprehensive technical + fundamental analysis with entry/exit recommendations.
+            </p>
+            <form id="watchlist-form" onsubmit="runWatchlistAnalysis(event)">
+                <div class="form-group">
+                    <label for="watchlist-symbols">📋 Stock Symbols</label>
+                    <textarea id="watchlist-symbols" class="form-control" rows="4" required placeholder="Enter symbols (comma or newline separated)
+Example:
+RELIANCE, TCS, INFY
+HDFCBANK
+ICICIBANK, SBIN"></textarea>
+                    <small>Enter NSE symbols (without .NS) - comma or newline separated</small>
+                </div>
+                <div class="form-group">
+                    <label for="watchlist-strategy">📊 Trading Style</label>
+                    <select id="watchlist-strategy" class="form-control" required>
+                        <option value="swing" selected>📈 Swing Trading (Days to weeks)</option>
+                        <option value="intraday">⚡ Intraday (Same day)</option>
+                        <option value="fno">🎯 F&O Trading (Options/Futures)</option>
+                        <option value="long_term">📅 Long Term (Months to years)</option>
+                    </select>
+                </div>
+                <div style="background: rgba(33, 150, 243, 0.1); padding: 10px; border-radius: 8px; margin-top: 15px;">
+                    <small style="color: var(--text-secondary);">
+                        💡 <strong>Deep Analysis Includes:</strong><br>
+                        • Complete technical setup (all indicators)<br>
+                        • Entry/Exit recommendations with SL & targets<br>
+                        • Fundamental view (company strength, valuation)<br>
+                        • Sector outlook and risks<br>
+                        • Priority ranking among your stocks<br>
+                        • Confidence scoring (1-10)<br>
+                        • Grade (A/B/C) for each trade
+                    </small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeWatchlistModal()">Cancel</button>
+                    <button type="submit" class="btn" style="background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); color: white;">
+                        ⭐ Analyze My Stocks
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- AI Verification Modal -->
+<div id="ai-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content ai-modal-content">
+        <div class="modal-header">
+            <h3>🤖 AI Trade Verification</h3>
+            <button class="btn-close" onclick="closeAIModal()">×</button>
+        </div>
+        
+        <div class="modal-body">
+            <!-- Signal Details -->
+            <div class="ai-signal-summary">
+                <h4>📊 Signal Details</h4>
+                <div class="signal-grid">
+                    <div class="signal-item">
+                        <span class="label">Symbol:</span>
+                        <span class="value" id="ai-signal-symbol">-</span>
+                    </div>
+                    <div class="signal-item">
+                        <span class="label">Strategy:</span>
+                        <span class="value" id="ai-signal-strategy">-</span>
+                    </div>
+                    <div class="signal-item">
+                        <span class="label">Price:</span>
+                        <span class="value" id="ai-signal-price">-</span>
+                    </div>
+                    <div class="signal-item">
+                        <span class="label">Stop Loss:</span>
+                        <span class="value" id="ai-signal-sl">-</span>
+                    </div>
+                    <div class="signal-item">
+                        <span class="label">Target:</span>
+                        <span class="value" id="ai-signal-target">-</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Loading State -->
+            <div id="ai-loading" class="ai-loading" style="display: flex;">
+                <div class="spinner"></div>
+                <p>Analyzing with AI... This may take 5-10 seconds</p>
+            </div>
+            
+            <!-- Error State -->
+            <div id="ai-error" class="ai-error" style="display: none;">
+                <p class="text-danger">❌ <span id="ai-error-message">Analysis failed</span></p>
+            </div>
+            
+            <!-- Results -->
+            <div id="ai-results" class="ai-results" style="display: none;">
+                <!-- Verdict & Confidence -->
+                <div class="ai-verdict-section">
+                    <div class="verdict-item">
+                        <span class="label">Verdict:</span>
+                        <span id="ai-verdict" class="value">-</span>
+                    </div>
+                    <div class="verdict-item">
+                        <span class="label">Confidence:</span>
+                        <span id="ai-confidence" class="value">-</span>
+                    </div>
+                </div>
+                
+                <!-- AI Recommendations -->
+                <div class="ai-recommendations">
+                    <h4>💡 AI Recommendations</h4>
+                    <div class="recommendations-grid">
+                        <div class="rec-item">
+                            <span class="label">Entry:</span>
+                            <span class="value" id="ai-entry">-</span>
+                        </div>
+                        <div class="rec-item">
+                            <span class="label">Stop Loss:</span>
+                            <span class="value text-danger" id="ai-sl">-</span>
+                        </div>
+                        <div class="rec-item">
+                            <span class="label">Target:</span>
+                            <span class="value text-success" id="ai-target">-</span>
+                        </div>
+                        <div class="rec-item">
+                            <span class="label">R:R Ratio:</span>
+                            <span class="value" id="ai-rr">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Reasoning -->
+                <div class="ai-reasoning">
+                    <h4>🧠 Analysis</h4>
+                    <p id="ai-reasoning">-</p>
+                </div>
+                
+                <!-- Risk Factors -->
+                <div class="ai-risk-factors">
+                    <h4>⚠️ Risk Factors</h4>
+                    <ul id="ai-risk-factors">
+                        <li>Loading...</li>
+                    </ul>
+                </div>
+                
+                <!-- Cost -->
+                <div class="ai-cost">
+                    <small class="text-muted">Analysis cost: <span id="ai-cost">$0.00</span></small>
+                </div>
+                
+                <!-- Actions -->
+                <div class="modal-actions">
+                    <button class="btn btn-success" onclick="addTradeFromAI()">✅ Add to Trades</button>
+                    <button class="btn btn-secondary" onclick="closeAIModal()">❌ Reject</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Authentication check
+const authToken = localStorage.getItem('auth_token');
+if (!authToken) {
+    window.location.href = '/login';
+}
+
+// Helper function to make authenticated API calls
+async function fetchWithAuth(url, options = {}) {
+    options.headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${authToken}`
+    };
+    return fetch(url, options);
+}
+
+let scannerInterval = null;
+let liveTradingEnabled = false;
+
+// Check if live trading is enabled
+async function checkLiveTradingStatus() {
+    try {
+        const response = await fetchWithAuth('/api/orders/feature-flags');
+        if (response.ok) {
+            const flags = await response.json();
+            liveTradingEnabled = flags.live_trading_enabled;
+            
+            // Show/hide live order buttons
+            const liveButtons = document.querySelectorAll('.live-order-btn');
+            liveButtons.forEach(btn => {
+                btn.style.display = liveTradingEnabled ? 'block' : 'none';
+            });
+            
+            // Update scanner form info
+            if (liveTradingEnabled) {
+                addLiveTradingNotice();
+            }
+        }
+    } catch (error) {
+        console.error('Error checking live trading status:', error);
+    }
+}
+
+function addLiveTradingNotice() {
+    const scannerForm = document.querySelector('.card');
+    if (!document.getElementById('live-trading-notice')) {
+        const notice = document.createElement('div');
+        notice.id = 'live-trading-notice';
+        notice.style.cssText = 'margin: 15px 0; padding: 12px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 8px; font-size: 14px; font-weight: 600;';
+        notice.innerHTML = '🚀 Live Trading Enabled - You can place real orders on Zerodha!';
+        scannerForm.appendChild(notice);
+    }
+}
+
+// Run on page load
+document.addEventListener('DOMContentLoaded', function() {
+    checkLiveTradingStatus();
+    
+    // Restore previous scanner results from localStorage
+    const savedResults = localStorage.getItem('lastScanResults');
+    const savedTimestamp = localStorage.getItem('lastScanTimestamp');
+    const savedScanType = localStorage.getItem('lastScanType');
+    
+    if (savedResults && savedTimestamp) {
+        try {
+            const signals = JSON.parse(savedResults);
+            const savedTime = new Date(savedTimestamp);
+            const now = new Date();
+            const hoursDiff = (now - savedTime) / (1000 * 60 * 60);
+            
+            // Only restore if less than 24 hours old
+            if (hoursDiff < 24 && signals.length > 0) {
+                // Display results
+                displayResults({
+                    signals: signals,
+                    scan_date: savedTime.toLocaleString('en-IN', { 
+                        dateStyle: 'medium', 
+                        timeStyle: 'short' 
+                    })
+                });
+                
+                // Show results section
+                document.getElementById('scanner-status').style.display = 'none';
+                document.getElementById('results-summary').style.display = 'grid';
+                document.getElementById('scanner-results').style.display = 'block';
+                
+                // Update page title based on scan type
+                let pageTitle = '🔍 Scanner Results';
+                if (savedScanType === 'ai_stock_finder') {
+                    pageTitle = '🤖 AI Stock Finder - Results';
+                } else if (savedScanType === 'ai_fno') {
+                    pageTitle = '🎯 AI F&O Finder - Results';
+                } else if (savedScanType === 'ai_watchlist') {
+                    pageTitle = '⭐ My Watchlist AI - Analysis Results';
+                } else if (savedScanType) {
+                    const strategyNames = {
+                        'momentum_btst': '⚡ Momentum BTST',
+                        'swing_supertrend': '📈 Swing SuperTrend',
+                        'mean_reversion': '🔄 Mean Reversion',
+                        'pullback_entry': '🔵 Pullback Entry',
+                        'swing_breakout_india': '🇮🇳 Swing Breakout India',
+                        'all': '🌟 All Strategies'
+                    };
+                    pageTitle = `🔍 ${strategyNames[savedScanType] || savedScanType} - Opportunities`;
+                }
+                document.querySelector('.page-header h2').textContent = pageTitle;
+                
+                // Show a toast indicating restored results
+                const timeAgo = hoursDiff < 1 ? 
+                    `${Math.round(hoursDiff * 60)} minutes ago` : 
+                    `${Math.round(hoursDiff)} hours ago`;
+                showToast(`✅ Restored ${signals.length} results from ${timeAgo}`, 'info');
+            } else {
+                // Clear old data
+                localStorage.removeItem('lastScanResults');
+                localStorage.removeItem('lastScanTimestamp');
+                localStorage.removeItem('lastScanType');
+            }
+        } catch (error) {
+            console.error('Error restoring scanner results:', error);
+            localStorage.removeItem('lastScanResults');
+            localStorage.removeItem('lastScanTimestamp');
+            localStorage.removeItem('lastScanType');
+        }
+    }
+});
+
+document.getElementById('scanner-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const scanData = {
+        strategy: formData.get('strategy'),
+        top_n: parseInt(formData.get('top_n')),
+        lookback_days: parseInt(formData.get('lookback_days')),
+        capital: parseFloat(formData.get('capital'))
+    };
+    
+    // Start scanner
+    document.getElementById('scan-btn').disabled = true;
+    document.getElementById('scanner-status').style.display = 'block';
+    document.getElementById('results-summary').style.display = 'none';
+    document.getElementById('scanner-results').style.display = 'none';
+    
+    try {
+        const response = await fetchWithAuth('/api/scanner/run', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(scanData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Scanner started! This may take a few minutes.', 'success');
+            monitorScanner();
+        } else {
+            showToast('Failed to start scanner', 'error');
+            document.getElementById('scan-btn').disabled = false;
+            document.getElementById('scanner-status').style.display = 'none';
+        }
+    } catch (error) {
+        showToast('Error starting scanner', 'error');
+        document.getElementById('scan-btn').disabled = false;
+        document.getElementById('scanner-status').style.display = 'none';
+    }
+});
+
+function monitorScanner() {
+    scannerInterval = setInterval(async () => {
+        try {
+            const response = await fetchWithAuth('/api/scanner/status');
+            const status = await response.json();
+            
+            if (status.success) {
+                updateScannerStatus(status.status);
+                
+                if (!status.status.is_running && status.status.last_scan) {
+                    clearInterval(scannerInterval);
+                    document.getElementById('scan-btn').disabled = false;
+                    showToast('Scanner completed!', 'success');
+                    loadLatestSignals();
+                }
+            }
+        } catch (error) {
+            console.error('Error monitoring scanner:', error);
+        }
+    }, 2000);
+}
+
+function updateScannerStatus(status) {
+    document.getElementById('scanner-progress-text').textContent = status.current_stock || 'Processing...';
+    document.getElementById('signals-count').textContent = status.signals_found || 0;
+    document.getElementById('scanner-progress-fill').style.width = status.progress + '%';
+}
+
+async function loadLatestSignals(strategy = 'all') {
+    try {
+        const response = await fetch(`/api/scanner/latest-signals?strategy=${strategy}`);
+        const data = await response.json();
+        
+        if (data.success && data.signals.length > 0) {
+            // Save to localStorage for persistence
+            localStorage.setItem('scanner_results', JSON.stringify({
+                data: data,
+                strategy: strategy,
+                timestamp: new Date().toISOString()
+            }));
+            
+            displayResults(data);
+            document.getElementById('scanner-status').style.display = 'none';
+            document.getElementById('results-summary').style.display = 'grid';
+            document.getElementById('scanner-results').style.display = 'block';
+            
+            // Update page title to show strategy
+            const strategyNames = {
+                'momentum_btst': '⚡ Momentum BTST',
+                'swing_supertrend': '📈 Swing SuperTrend',
+                'mean_reversion': '🔄 Mean Reversion',
+                'pullback_entry': '🔵 Pullback Entry',
+                'swing_breakout_india': '🇮🇳 Swing Breakout India',
+                'all': '🌟 All Strategies'
+            };
+            document.querySelector('.page-header h2').textContent = `🔍 ${strategyNames[strategy]} - Opportunities`;
+        } else {
+            showToast(data.message || 'No signals found', 'info');
+        }
+    } catch (error) {
+        showToast('Error loading signals', 'error');
+    }
+}
+
+function displayResults(data) {
+    const signals = data.signals;
+    
+    // Normalize signal data (different scanners use different column names)
+    signals.forEach(s => {
+        s.quality_score = s.quality_score || s.rating || 7;
+        s.position_value = s.position_value || (s.investment) || (s.shares * s.entry_price);
+        s.current_price = s.current_price || s.entry_price || s.close;
+        s.stop_loss_pct = s.stop_loss_pct || s.stop_pct || 2;
+        s.target_pct = s.target_pct || 5;
+        s.potential_profit = s.potential_profit || (s.position_value * s.target_pct / 100);
+        s.potential_loss = s.potential_loss || (s.position_value * s.stop_loss_pct / 100);
+        s.signal_date = s.signal_date || s.date || 'Recent';
+    });
+    
+    // Update summary cards
+    const totalInvestment = signals.reduce((sum, s) => sum + (s.position_value || 0), 0);
+    const avgScore = signals.reduce((sum, s) => sum + (s.quality_score || 0), 0) / signals.length;
+    const capital = parseFloat(document.getElementById('capital').value) || 100000;
+    
+    document.getElementById('summary-signals').textContent = signals.length;
+    document.getElementById('summary-date').textContent = data.scan_date;
+    document.getElementById('summary-investment').textContent = `₹${totalInvestment.toLocaleString('en-IN')}`;
+    document.getElementById('summary-capital-used').textContent = `${(totalInvestment/capital*100).toFixed(1)}% capital`;
+    document.getElementById('summary-avg-score').textContent = avgScore.toFixed(1);
+    
+    // Calculate average R:R from signals
+    const avgRR = signals.reduce((sum, s) => sum + (s.rr_ratio || s.target_pct / s.stop_loss_pct || 2), 0) / signals.length;
+    document.getElementById('summary-rr').textContent = `${avgRR.toFixed(1)}:1`;
+    
+    // Build results table
+    let html = `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Symbol</th>
+                    <th>Strategy</th>
+                    <th>Score</th>
+                    <th>Price</th>
+                    <th>Stop Loss</th>
+                    <th>Target</th>
+                    <th>R:R</th>
+                    <th>Position</th>
+                    <th>Risk</th>
+                    <th>Signal Date</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    signals.forEach((signal, index) => {
+        const scoreClass = signal.quality_score >= 8 ? 'score-high' : signal.quality_score >= 6 ? 'score-medium' : 'score-low';
+        
+        // Create TradingView link
+        const cleanSymbol = signal.symbol.replace('.NS', '');
+        const tvLink = `https://www.tradingview.com/chart/?symbol=NSE%3A${cleanSymbol}`;
+        
+        // Format strategy name with icon
+        const strategyMap = {
+            'momentum_btst': { name: 'Momentum BTST', icon: '⚡', color: '#ff6b6b', duration: '1-3d' },
+            'swing_supertrend': { name: 'Swing SuperTrend', icon: '📈', color: '#4ecdc4', duration: '7-30d' },
+            'mean_reversion': { name: 'Mean Reversion', icon: '🔄', color: '#95e1d3', duration: '2-5d' },
+            'pullback_entry': { name: 'Pullback Entry', icon: '🔵', color: '#3498db', duration: '5-30d' }
+        };
+        const strategy = signal.strategy || 'unknown';
+        const strategyInfo = strategyMap[strategy] || { name: strategy, icon: '📊', color: '#999', duration: 'N/A' };
+        const strategyDisplay = `
+            <span style="display: inline-block; padding: 4px 8px; border-radius: 4px; background: ${strategyInfo.color}20; border-left: 3px solid ${strategyInfo.color}; font-size: 11px;">
+                <strong>${strategyInfo.icon} ${strategyInfo.name}</strong><br>
+                <small style="color: #666;">${strategyInfo.duration}</small>
+            </span>
+        `;
+        
+        // Get risk:reward ratio
+        const rrRatio = signal.risk_reward_ratio || signal.rr_ratio || (signal.target_pct / signal.stop_loss_pct) || 2;
+        const rrClass = rrRatio >= 2 ? 'text-success' : rrRatio >= 1.5 ? 'text-warning' : 'text-danger';
+        
+        // Calculate potential P&L
+        const riskAmount = signal.risk_amount || signal.potential_loss || (signal.shares * (signal.current_price - signal.stop_loss));
+        const rewardAmount = signal.reward_amount_per_share ? (signal.reward_amount_per_share * signal.shares) : signal.potential_profit || (signal.shares * (signal.target - signal.current_price));
+        
+        // Position sizing info
+        const shares = signal.shares || 0;
+        const positionValue = signal.position_value || (shares * signal.current_price);
+        const capitalAllocation = signal.capital_allocation_pct || ((positionValue / capital) * 100);
+        
+        // Determine target display (show target_1 and target_2 if available)
+        let targetDisplay;
+        if (signal.target_1 && signal.target_2) {
+            targetDisplay = `₹${signal.target_1.toFixed(2)} / ₹${signal.target_2.toFixed(2)}<br><small class="text-success">(+${signal.reward_pct ? signal.reward_pct.toFixed(1) : signal.target_pct.toFixed(1)}%)</small>`;
+        } else {
+            const targetPrice = signal.target || signal.target_1 || signal.current_price;
+            targetDisplay = `₹${targetPrice.toFixed(2)}<br><small class="text-success">(+${signal.reward_pct ? signal.reward_pct.toFixed(1) : signal.target_pct.toFixed(1)}%)</small>`;
+        }
+        
+        // Check if F&O trade or Watchlist
+        const isFno = signal.is_fno || false;
+        const isWatchlist = signal.is_watchlist || false;
+        const rowStyle = isFno 
+            ? 'background: linear-gradient(to right, rgba(245, 87, 108, 0.05), transparent); cursor: pointer;'
+            : isWatchlist
+                ? 'background: linear-gradient(to right, rgba(106, 17, 203, 0.05), transparent); cursor: pointer;'
+                : signal.ai_generated 
+                    ? 'background: linear-gradient(to right, rgba(138, 43, 226, 0.05), transparent);' 
+                    : '';
+        
+        html += `
+            <tr style="${rowStyle}" ${isFno ? `onclick='expandFnoDetails(${JSON.stringify(signal).replace(/'/g, "\\'")})'` : isWatchlist ? `onclick='expandWatchlistDetails(${JSON.stringify(signal).replace(/'/g, "\\'")})'` : ''}>
+                <td><strong>${index + 1}</strong></td>
+                <td>
+                    <strong>
+                        <a href="${tvLink}" target="_blank" class="stock-link-inline" title="View ${signal.symbol} on TradingView" onclick="event.stopPropagation()">
+                            📊 ${signal.symbol}
+                        </a>
+                    </strong>
+                    ${isFno ? '<br><span class="badge" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; font-size: 9px; padding: 2px 6px;">🎯 F&O</span>' : ''}
+                    ${isWatchlist ? `<br><span class="badge" style="background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); color: white; font-size: 9px; padding: 2px 6px;">⭐ ${signal.watchlist_recommendation} (${signal.watchlist_grade})</span>` : ''}
+                    ${signal.ai_generated && !isFno && !isWatchlist ? '<br><span class="badge" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; font-size: 9px; padding: 2px 6px;">🤖 AI</span>' : ''}
+                    ${signal.ai_sector ? `<br><small style="color: #888; font-size: 10px;">${signal.ai_sector}</small>` : ''}
+                    ${signal.fno_expiry ? `<br><small style="color: #888; font-size: 10px;">Exp: ${signal.fno_expiry}</small>` : ''}
+                    ${isWatchlist ? `<br><small style="color: #6a11cb; font-size: 9px;">Priority: #${signal.watchlist_priority} | ${signal.watchlist_holding_period}</small>` : ''}
+                    ${signal.data_freshness ? `<br><small style="color: #f5576c; font-size: 9px;">📅 ${signal.data_freshness}</small>` : ''}
+                </td>
+                <td>${strategyDisplay}</td>
+                <td>
+                    <span class="score-badge ${scoreClass}">${(signal.quality_score || signal.ai_confidence || 7).toFixed(0)}/10</span>
+                    ${signal.ai_confidence ? `<br><small style="color: #888;">AI: ${signal.ai_confidence}/10</small>` : ''}
+                </td>
+                <td>₹${signal.current_price.toFixed(2)}</td>
+                <td class="text-danger">₹${signal.stop_loss.toFixed(2)}<br><small>(-${signal.risk_pct ? signal.risk_pct.toFixed(1) : signal.stop_loss_pct.toFixed(1)}%)</small></td>
+                <td class="text-success">${targetDisplay}</td>
+                <td><strong class="${rrClass}">1:${rrRatio.toFixed(1)}</strong></td>
+                <td>
+                    <strong>${shares} shares</strong><br>
+                    <small>₹${positionValue.toLocaleString('en-IN', {maximumFractionDigits: 0})}</small><br>
+                    <small class="text-muted">${capitalAllocation.toFixed(1)}% capital</small>
+                </td>
+                <td>
+                    <div style="font-size: 12px;">
+                        <div class="text-success">↑ ₹${rewardAmount.toFixed(0)}</div>
+                        <div class="text-danger">↓ ₹${riskAmount.toFixed(0)}</div>
+                        <div class="text-muted" style="font-size: 10px;">Risk: ${signal.actual_risk_pct ? signal.actual_risk_pct.toFixed(1) : '2.0'}%</div>
+                    </div>
+                </td>
+                <td>${signal.signal_date || 'Recent'}</td>
+                <td>
+                    <div style="display: flex; gap: 5px; flex-direction: column;">
+                        ${signal.ai_generated ? `
+                            <button class="btn btn-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;" onclick='showAIDetails(${JSON.stringify(signal).replace(/'/g, "\\'")})' title="View AI Analysis">
+                                🤖 AI Details
+                            </button>
+                        ` : `
+                            <button class="btn btn-sm btn-info" onclick='verifyWithAI(${JSON.stringify(signal)})'>
+                                🤖 Verify with AI
+                            </button>
+                        `}
+                        <button class="btn btn-sm btn-success live-order-btn" onclick='placeLiveOrder(${JSON.stringify(signal)})' style="display: none;">
+                            🚀 Live Order
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick='addTradeFromSignal(${JSON.stringify(signal)})'>
+                            📝 Paper Trade
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table>';
+    document.getElementById('results-table').innerHTML = html;
+    
+    // Check live trading status to show/hide live order buttons
+    checkLiveTradingStatus();
+}
+
+// Place Live Order on Zerodha with Bracket Orders (BUY + SL + Target)
+async function placeLiveOrder(signal) {
+    if (!liveTradingEnabled) {
+        showToast('Live trading is not enabled. Enable it in Profile settings.', 'warning');
+        return;
+    }
+    
+    // Confirmation dialog with order details
+    const orderDetails = `
+🚀 PLACE LIVE ORDER ON ZERODHA
+
+Symbol: ${signal.symbol}
+Entry Price: ₹${signal.current_price.toFixed(2)}
+Shares: ${signal.shares}
+Position Value: ₹${signal.position_value.toLocaleString('en-IN')}
+
+Stop Loss: ₹${signal.stop_loss.toFixed(2)} (${signal.stop_loss_pct.toFixed(1)}%)
+Target: ₹${signal.target.toFixed(2)} (+${signal.target_pct.toFixed(1)}%)
+
+⚠️ This will place a REAL order on Zerodha!
+✅ Bracket order will include automatic SL and Target
+
+Do you want to proceed?
+    `;
+    
+    if (!confirm(orderDetails.trim())) {
+        return;
+    }
+    
+    showToast('Placing order on Zerodha...', 'info');
+    
+    try {
+        // Place BUY order with bracket (BUY + SL + Target)
+        const response = await fetchWithAuth('/api/orders/place-bracket', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${authToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                symbol: signal.symbol.replace('.NS', ''),
+                exchange: 'NSE',
+                transaction_type: 'BUY',
+                quantity: signal.shares,
+                price: signal.current_price,
+                stop_loss: signal.stop_loss,
+                target: signal.target,
+                order_type: 'LIMIT',
+                product: 'CNC',
+                validity: 'DAY',
+                notes: `Scanner signal - Score: ${signal.quality_score}/10`
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+            showToast(`✅ Order placed successfully! Order IDs: BUY: ${result.buy_order_id}, SL: ${result.sl_order_id}, Target: ${result.target_order_id}`, 'success');
+            
+            // Show detailed success message
+            alert(`
+🎉 ORDER PLACED SUCCESSFULLY!
+
+Buy Order ID: ${result.buy_order_id}
+SL Order ID: ${result.sl_order_id || 'N/A'}
+Target Order ID: ${result.target_order_id || 'N/A'}
+
+✅ Check your Zerodha app for order status
+✅ Orders will execute automatically when conditions are met
+✅ Track this trade in the Trades page
+            `);
+            
+            // Add to tracking system with Zerodha order IDs
+            addLiveTradeFromSignal(signal, result);
+        } else {
+            throw new Error(result.message || 'Failed to place order');
+        }
+    } catch (error) {
+        console.error('Error placing live order:', error);
+        showToast(`❌ Error: ${error.message}`, 'error');
+        alert(`
+❌ ORDER FAILED
+
+Error: ${error.message}
+
+Please check:
+• Zerodha account is connected
+• Sufficient funds available
+• Market is open
+• Symbol is correct
+
+Try again or contact support if issue persists.
+        `);
+    }
+}
+
+function addTradeFromSignal(signal) {
+    // Show trailing SL configuration modal
+    showTrailingConfigModal(signal, false);
+}
+
+function addLiveTradeFromSignal(signal, orderResult) {
+    // For live trades, also show config but with order IDs
+    showTrailingConfigModal(signal, true, orderResult);
+}
+
+// New function: Show trailing SL configuration before adding trade
+function showTrailingConfigModal(signal, isLive = false, orderResult = null) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>🎯 Add Trade - ${signal.symbol}</h3>
+                <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="trade-summary">
+                    <div class="summary-row">
+                        <span>Entry Price:</span>
+                        <strong>₹${signal.current_price.toFixed(2)}</strong>
+                    </div>
+                    <div class="summary-row">
+                        <span>Shares:</span>
+                        <strong>${signal.shares}</strong>
+                    </div>
+                    <div class="summary-row">
+                        <span>Stop Loss:</span>
+                        <strong class="text-danger">₹${signal.stop_loss.toFixed(2)}</strong>
+                    </div>
+                    <div class="summary-row">
+                        <span>Target:</span>
+                        <strong class="text-success">₹${signal.target.toFixed(2)}</strong>
+                    </div>
+                    <div class="summary-row">
+                        <span>Investment:</span>
+                        <strong>₹${signal.position_value.toLocaleString('en-IN')}</strong>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <div class="form-section">
+                    <h4>🚀 Trailing Stop-Loss</h4>
+                    <p style="color: #888; font-size: 13px; margin-bottom: 15px;">
+                        Automatically move your stop-loss UP as price rises, protecting profits!
+                    </p>
+                    
+                    <div class="form-group">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="enable_trailing" checked>
+                            <span>Enable Trailing Stop-Loss (Recommended)</span>
+                        </label>
+                    </div>
+                    
+                    <div id="trailing_config" style="margin-top: 15px;">
+                        <div class="form-group">
+                            <label>Trailing Type</label>
+                            <select id="trailing_type" class="form-control">
+                                <option value="percentage" selected>Percentage (Recommended)</option>
+                                <option value="fixed">Fixed Amount</option>
+                                <option value="atr">ATR-Based (Advanced)</option>
+                            </select>
+                            <small id="trailing_type_hint">Trail stop-loss by % below highest price</small>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Trail Distance</label>
+                            <input type="number" id="trail_distance" class="form-control" value="3.0" step="0.5" min="0.5" max="10">
+                            <small id="trail_distance_hint">3% below highest price</small>
+                        </div>
+                        
+                        <div class="trail-example" style="background: #1a1f2e; padding: 12px; border-radius: 8px; margin-top: 10px;">
+                            <div style="font-size: 12px; color: #888; margin-bottom: 5px;">Example:</div>
+                            <div style="font-size: 13px; line-height: 1.6;">
+                                • Price reaches ₹${(signal.current_price * 1.1).toFixed(2)} → SL moves to ₹${(signal.current_price * 1.1 * 0.97).toFixed(2)}<br>
+                                • Price reaches ₹${(signal.current_price * 1.2).toFixed(2)} → SL moves to ₹${(signal.current_price * 1.2 * 0.97).toFixed(2)}<br>
+                                • <span style="color: #10b981;">Protects profits automatically!</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
+                <button class="btn btn-primary" onclick="confirmAddTrade(${JSON.stringify(signal).replace(/"/g, '&quot;')}, ${isLive}, ${JSON.stringify(orderResult).replace(/"/g, '&quot;')})">
+                    ${isLive ? '🚀 Add Live Trade' : '📝 Add Paper Trade'}
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Force correct positioning (in case CSS doesn't load)
+    modal.style.cssText = `
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        background-color: rgba(0, 0, 0, 0.75) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        z-index: 9999 !important;
+        padding: 20px;
+        overflow-y: auto;
+    `;
+    
+    // Toggle trailing config visibility
+    document.getElementById('enable_trailing').addEventListener('change', function() {
+        document.getElementById('trailing_config').style.display = this.checked ? 'block' : 'none';
+    });
+    
+    // Update hints based on type selection
+    document.getElementById('trailing_type').addEventListener('change', function() {
+        const type = this.value;
+        const distanceInput = document.getElementById('trail_distance');
+        const typeHint = document.getElementById('trailing_type_hint');
+        const distanceHint = document.getElementById('trail_distance_hint');
+        
+        if (type === 'percentage') {
+            distanceInput.value = '3.0';
+            typeHint.textContent = 'Trail stop-loss by % below highest price';
+            distanceHint.textContent = '3% below highest price';
+        } else if (type === 'fixed') {
+            distanceInput.value = '5.0';
+            typeHint.textContent = 'Trail stop-loss by fixed amount below highest';
+            distanceHint.textContent = '₹5 below highest price';
+        } else if (type === 'atr') {
+            distanceInput.value = '2.0';
+            typeHint.textContent = 'Trail based on volatility (Average True Range)';
+            distanceHint.textContent = '2x ATR below highest (volatility-adjusted)';
+        }
+    });
+}
+
+function confirmAddTrade(signal, isLive, orderResult) {
+    const enableTrailing = document.getElementById('enable_trailing').checked;
+    const trailingType = document.getElementById('trailing_type').value;
+    const trailDistance = parseFloat(document.getElementById('trail_distance').value);
+    
+    const tradeData = {
+        id: `TRADE_${Date.now()}`,
+        symbol: signal.symbol,
+        entry_date: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        entry_price: signal.current_price,
+        shares: signal.shares,
+        stop_loss: signal.stop_loss,
+        target: signal.target,
+        position_value: signal.position_value,
+        status: 'open',
+        notes: `Scanner signal - Quality Score: ${signal.quality_score}/10`,
+        is_live: isLive,
+        // Trailing SL fields
+        trailing_enabled: enableTrailing,
+        trailing_type: trailingType,
+        trailing_distance: trailDistance,
+        highest_price: signal.current_price,
+        initial_sl: signal.stop_loss,
+        sl_updates_count: 0,
+        last_sl_update: null,
+        last_price_check: null
+    };
+    
+    // Add order IDs if live trade
+    if (isLive && orderResult) {
+        tradeData.zerodha_buy_order_id = orderResult.buy_order_id;
+        tradeData.zerodha_sl_order_id = orderResult.sl_order_id;
+        tradeData.zerodha_target_order_id = orderResult.target_order_id;
+    }
+    
+    // Close modal
+    document.querySelector('.modal-overlay').remove();
+    
+    // Add trade and show single success message
+    addTrade(tradeData).then(() => {
+        showToast(`✅ Trade added: ${signal.symbol}`, 'success');
+    });
+}
+
+async function addTrade(tradeData) {
+    try {
+        const response = await fetchWithAuth('/api/trades/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(tradeData)
+        });
+        
+        const result = await response.json();
+        
+        // Don't show toast for individual trades - only show errors
+        if (!result.success) {
+            showToast(`Failed to add trade: ${tradeData.symbol}`, 'error');
+        }
+    } catch (error) {
+        showToast('Error adding trade', 'error');
+    }
+}
+
+async function addAllTrades() {
+    if (!confirm('Add all suggested trades to your portfolio?')) return;
+    
+    const response = await fetchWithAuth('/api/scanner/latest-signals');
+    const data = await response.json();
+    
+    if (data.success && data.signals.length > 0) {
+        for (const signal of data.signals) {
+            await addTradeFromSignal(signal);
+            await new Promise(resolve => setTimeout(resolve, 100)); // Small delay between adds
+        }
+        showToast(`Added ${data.signals.length} trades to portfolio!`, 'success');
+    }
+}
+
+function exportResults() {
+    fetch('/api/scanner/latest-signals')
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showToast('Results exported! Check your downloads folder.', 'success');
+                // In real implementation, would trigger CSV download
+            }
+        });
+}
+
+function clearResults() {
+    if (confirm('Clear scanner results? You can always load them again.')) {
+        // Clear localStorage
+        localStorage.removeItem('scanner_results');
+        
+        // Hide results
+        document.getElementById('scanner-results').style.display = 'none';
+        document.getElementById('results-summary').style.display = 'none';
+        document.getElementById('scanner-status').style.display = 'block';
+        
+        // Reset page title
+        document.querySelector('.page-header h2').textContent = '🔍 Scanner - Find Trading Opportunities';
+        
+        showToast('Results cleared', 'success');
+    }
+}
+
+// Show TradingView chart for a signal
+function showTradeChart(symbol, signalDate, tradeData) {
+    TradingViewWidgets.showChartModal(symbol, signalDate, tradeData);
+}
+
+// AI Verification Function
+async function verifyWithAI(signal) {
+    // Check if AI is configured
+    const aiConfig = JSON.parse(localStorage.getItem('ai_config') || '{}');
+    
+    console.log('AI Config:', aiConfig); // Debug log
+    
+    const defaultProvider = aiConfig.default_provider || 'gemini';
+    let providerConfig;
+    
+    if (defaultProvider === 'claude') {
+        providerConfig = aiConfig.claude;
+    } else if (defaultProvider === 'openai') {
+        providerConfig = aiConfig.openai;
+    } else if (defaultProvider === 'gemini') {
+        providerConfig = aiConfig.gemini;
+    } else {
+        providerConfig = aiConfig.gemini || aiConfig.claude || aiConfig.openai; // Fallback
+    }
+    
+    console.log('Default Provider:', defaultProvider); // Debug log
+    console.log('Provider Config:', providerConfig); // Debug log
+    
+    // Check if provider is configured
+    if (!providerConfig) {
+        const providerName = defaultProvider === 'claude' ? 'Claude' : defaultProvider === 'openai' ? 'OpenAI' : 'Gemini';
+        showToast(`${providerName} not configured. Please setup AI in Profile page.`, 'warning');
+        setTimeout(() => {
+            window.location.href = '/profile#ai-integration';
+        }, 2000);
+        return;
+    }
+    
+    // Check for credentials (API key or bearer token)
+    const authMode = providerConfig?.auth_mode || 'api_key';
+    const hasCredentials = authMode === 'bearer_token' ? 
+                          (providerConfig?.bearer_token && providerConfig.bearer_token.trim() !== '') :
+                          (providerConfig?.api_key && providerConfig.api_key.trim() !== '');
+    
+    if (!hasCredentials) {
+        const providerName = defaultProvider === 'claude' ? 'Claude' : defaultProvider === 'openai' ? 'OpenAI' : 'Gemini';
+        const credType = authMode === 'bearer_token' ? 'Bearer token' : 'API key';
+        showToast(`${providerName} ${credType} missing. Please add in Profile page.`, 'warning');
+        setTimeout(() => {
+            window.location.href = '/profile#ai-integration';
+        }, 2000);
+        return;
+    }
+    
+    // Check if enabled
+    if (!providerConfig?.enabled) {
+        const providerName = defaultProvider === 'claude' ? 'Claude' : defaultProvider === 'openai' ? 'OpenAI' : 'Gemini';
+        showToast(`${providerName} is disabled. Please enable in Profile page.`, 'warning');
+        setTimeout(() => {
+            window.location.href = '/profile#ai-integration';
+        }, 2000);
+        return;
+    }
+    
+    // Show AI modal
+    showAIModal(signal, defaultProvider);
+}
+
+function showAIModal(signal, provider) {
+    const modal = document.getElementById('ai-modal');
+    const modalContent = document.getElementById('ai-modal-content');
+    
+    // Handle both entry_price and current_price
+    const currentPrice = signal.current_price || signal.entry_price || 0;
+    
+    // Calculate percentages if not present
+    const slPct = signal.stop_loss_pct || ((currentPrice - signal.stop_loss) / currentPrice * 100);
+    const targetPct = signal.target_pct || ((signal.target - currentPrice) / currentPrice * 100);
+    
+    // Display signal details
+    document.getElementById('ai-signal-symbol').textContent = signal.symbol || 'N/A';
+    document.getElementById('ai-signal-strategy').textContent = signal.strategy || 'Unknown';
+    document.getElementById('ai-signal-price').textContent = currentPrice ? `₹${currentPrice.toFixed(2)}` : 'N/A';
+    document.getElementById('ai-signal-sl').textContent = signal.stop_loss ? `₹${signal.stop_loss.toFixed(2)} (${slPct.toFixed(1)}%)` : 'N/A';
+    document.getElementById('ai-signal-target').textContent = signal.target ? `₹${signal.target.toFixed(2)} (+${targetPct.toFixed(1)}%)` : 'N/A';
+    
+    // Show loading state
+    document.getElementById('ai-loading').style.display = 'flex';
+    document.getElementById('ai-results').style.display = 'none';
+    document.getElementById('ai-error').style.display = 'none';
+    
+    modal.style.display = 'flex';
+    
+    // Call AI analysis API
+    analyzeTradeWithAI(signal, provider);
+}
+
+async function analyzeTradeWithAI(signal, provider) {
+    try {
+        const aiConfig = JSON.parse(localStorage.getItem('ai_config') || '{}');
+        
+        // Get provider config based on provider type
+        let providerConfig;
+        if (provider === 'claude') {
+            providerConfig = aiConfig.claude;
+        } else if (provider === 'openai') {
+            providerConfig = aiConfig.openai;
+        } else if (provider === 'gemini') {
+            providerConfig = aiConfig.gemini;
+        }
+        
+        const capital = parseFloat(document.getElementById('capital').value) || 100000;
+        
+        // Prepare request body - handle both entry_price and current_price
+        const currentPrice = signal.current_price || signal.entry_price || 0;
+        const stopLoss = signal.stop_loss || 0;
+        let target = signal.target || signal.target_1 || signal.target_2 || 0;
+        
+        // Validate and calculate missing target
+        if (!target || target <= 0 || target <= currentPrice) {
+            // Calculate reasonable target based on stop loss (2:1 R:R minimum)
+            const risk = currentPrice - stopLoss;
+            target = currentPrice + (risk * 2); // 2:1 reward:risk ratio
+            console.log(`⚠️ Target missing or invalid (${signal.target}), calculated: ${target.toFixed(2)}`);
+        }
+        
+        // Validate all required fields
+        if (!currentPrice || currentPrice <= 0) {
+            throw new Error('Invalid current price');
+        }
+        if (!stopLoss || stopLoss <= 0 || stopLoss >= currentPrice) {
+            throw new Error('Invalid stop loss');
+        }
+        if (!target || target <= currentPrice) {
+            throw new Error('Invalid target price');
+        }
+        
+        const requestBody = {
+            symbol: signal.symbol,
+            strategy: signal.strategy || 'unknown',
+            current_price: currentPrice,
+            stop_loss: stopLoss,
+            target: target,
+            capital: capital
+        };
+        
+        console.log('AI Request Body:', requestBody); // Debug log
+        
+        // Determine auth mode and get the correct credential
+        const authMode = providerConfig?.auth_mode || 'api_key';
+        const credential = authMode === 'bearer_token' ? 
+                          (providerConfig?.bearer_token || '') : 
+                          (providerConfig?.api_key || '');
+        
+        console.log(`🔑 Auth Mode: ${authMode}, Has Credential: ${credential ? 'Yes' : 'No'}`);
+        
+        const response = await fetch('/api/ai/analyze-trade', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-AI-Provider': provider,
+                'X-AI-Auth-Mode': authMode,
+                'X-AI-Key': credential,
+                'X-AI-Model': providerConfig.model
+            },
+            body: JSON.stringify(requestBody)
+        });
+        
+        console.log('AI Response Status:', response.status); // Debug log
+        
+        const data = await response.json();
+        console.log('AI Response Data:', data); // Debug log
+        
+        if (!response.ok) {
+            // Handle HTTP errors
+            const errorMsg = data.detail || data.error || `HTTP ${response.status}: ${response.statusText}`;
+            throw new Error(errorMsg);
+        }
+        
+        if (data.success) {
+            displayAIResults(data.analysis, signal);
+        } else {
+            throw new Error(data.error || 'AI analysis failed');
+        }
+    } catch (error) {
+        console.error('AI Analysis Error:', error);
+        document.getElementById('ai-loading').style.display = 'none';
+        document.getElementById('ai-error').style.display = 'block';
+        
+        // Show detailed error message
+        let errorMessage = error.message;
+        if (errorMessage.includes('422')) {
+            errorMessage = 'Invalid request data. Please check that all required fields (symbol, price, SL, target) are present.';
+        } else if (errorMessage.includes('401') || errorMessage.includes('403')) {
+            errorMessage = 'Invalid API key. Please check your AI configuration in Profile page.';
+        } else if (errorMessage.includes('429')) {
+            errorMessage = 'Rate limit exceeded. Please wait a moment and try again.';
+        }
+        
+        document.getElementById('ai-error-message').textContent = errorMessage;
+    }
+}
+
+function displayAIResults(analysis, signal) {
+    // Hide loading
+    document.getElementById('ai-loading').style.display = 'none';
+    document.getElementById('ai-results').style.display = 'block';
+    
+    // Verdict
+    const verdict = analysis.valid ? '✅ Valid Setup' : '❌ Invalid Setup';
+    const verdictClass = analysis.valid ? 'text-success' : 'text-danger';
+    document.getElementById('ai-verdict').innerHTML = `<strong class="${verdictClass}">${verdict}</strong>`;
+    
+    // Confidence
+    const confidencePercent = (analysis.confidence / 10 * 100).toFixed(0);
+    const confidenceClass = analysis.confidence >= 7 ? 'text-success' : analysis.confidence >= 5 ? 'text-warning' : 'text-danger';
+    document.getElementById('ai-confidence').innerHTML = `
+        <strong class="${confidenceClass}">${analysis.confidence.toFixed(1)}/10</strong> 
+        (${confidencePercent}%)
+    `;
+    
+    // Recommendations
+    document.getElementById('ai-entry').textContent = `₹${analysis.entry.toFixed(2)}`;
+    document.getElementById('ai-sl').textContent = `₹${analysis.stop_loss.toFixed(2)}`;
+    document.getElementById('ai-target').textContent = `₹${analysis.target.toFixed(2)}`;
+    
+    const rrRatio = ((analysis.target - analysis.entry) / (analysis.entry - analysis.stop_loss)).toFixed(2);
+    document.getElementById('ai-rr').textContent = `${rrRatio}:1`;
+    
+    // Reasoning
+    document.getElementById('ai-reasoning').textContent = analysis.reasoning || 'No detailed reasoning provided.';
+    
+    // Risk Factors
+    const riskFactorsList = document.getElementById('ai-risk-factors');
+    riskFactorsList.innerHTML = '';
+    if (analysis.risk_factors && analysis.risk_factors.length > 0) {
+        analysis.risk_factors.forEach(risk => {
+            const li = document.createElement('li');
+            li.textContent = risk;
+            li.style.marginBottom = '8px';
+            riskFactorsList.appendChild(li);
+        });
+    } else {
+        riskFactorsList.innerHTML = '<li>No specific risk factors identified</li>';
+    }
+    
+    // Technical Analysis (if provided)
+    if (analysis.technical_analysis) {
+        const techAnalysis = analysis.technical_analysis;
+        let techHtml = '<div style="margin-top: 15px; padding: 12px; border-radius: 8px;">';
+        techHtml += '<h4 style="margin-top: 0;">📊 Technical Analysis</h4>';
+        
+        if (techAnalysis.trend) {
+            techHtml += `<p style="margin: 8px 0;"><strong>📈 Trend:</strong> ${techAnalysis.trend}</p>`;
+        }
+        if (techAnalysis.support_resistance) {
+            techHtml += `<p style="margin: 8px 0;"><strong>🎯 Support/Resistance:</strong> ${techAnalysis.support_resistance}</p>`;
+        }
+        if (techAnalysis.indicator_summary) {
+            techHtml += `<p style="margin: 8px 0;"><strong>📉 Indicators:</strong> ${techAnalysis.indicator_summary}</p>`;
+        }
+        if (techAnalysis.price_action) {
+            techHtml += `<p style="margin: 8px 0;"><strong>💹 Price Action:</strong> ${techAnalysis.price_action}</p>`;
+        }
+        
+        techHtml += '</div>';
+        
+        // Insert after risk factors
+        const riskSection = document.getElementById('ai-risk-factors').parentElement;
+        const existingTech = document.getElementById('ai-technical-analysis');
+        if (existingTech) {
+            existingTech.innerHTML = techHtml;
+        } else {
+            const techDiv = document.createElement('div');
+            techDiv.id = 'ai-technical-analysis';
+            techDiv.innerHTML = techHtml;
+            riskSection.parentElement.insertBefore(techDiv, riskSection.nextSibling);
+        }
+    }
+    
+    // Fundamental Analysis (if provided)
+    if (analysis.fundamental_analysis) {
+        const fundAnalysis = analysis.fundamental_analysis;
+        let fundHtml = '<div style="margin-top: 15px; padding: 12px; border-radius: 8px;">';
+        fundHtml += '<h4 style="margin-top: 0;">💼 Fundamental Analysis</h4>';
+        
+        if (fundAnalysis.company_overview) {
+            fundHtml += `<p style="margin: 8px 0;"><strong>🏢 Company:</strong> ${fundAnalysis.company_overview}</p>`;
+        }
+        if (fundAnalysis.earnings_trend) {
+            fundHtml += `<p style="margin: 8px 0;"><strong>📊 Earnings:</strong> ${fundAnalysis.earnings_trend}</p>`;
+        }
+        if (fundAnalysis.financial_health) {
+            fundHtml += `<p style="margin: 8px 0;"><strong>💰 Financial Health:</strong> ${fundAnalysis.financial_health}</p>`;
+        }
+        if (fundAnalysis.sector_outlook) {
+            fundHtml += `<p style="margin: 8px 0;"><strong>🏭 Sector:</strong> ${fundAnalysis.sector_outlook}</p>`;
+        }
+        if (fundAnalysis.recent_news) {
+            fundHtml += `<p style="margin: 8px 0;"><strong>📰 Recent News:</strong> ${fundAnalysis.recent_news}</p>`;
+        }
+        
+        fundHtml += '</div>';
+        
+        const existingFund = document.getElementById('ai-fundamental-analysis');
+        const techSection = document.getElementById('ai-technical-analysis');
+        if (existingFund) {
+            existingFund.innerHTML = fundHtml;
+        } else {
+            const fundDiv = document.createElement('div');
+            fundDiv.id = 'ai-fundamental-analysis';
+            fundDiv.innerHTML = fundHtml;
+            if (techSection) {
+                techSection.parentElement.insertBefore(fundDiv, techSection.nextSibling);
+            }
+        }
+    }
+    
+    // Market Context (if provided)
+    if (analysis.market_context) {
+        const marketCtx = analysis.market_context;
+        let marketHtml = '<div style="margin-top: 15px; padding: 12px; border-radius: 8px;">';
+        marketHtml += '<h4 style="margin-top: 0;">🌍 Market Context</h4>';
+        
+        if (marketCtx.nifty_correlation) {
+            marketHtml += `<p style="margin: 8px 0;"><strong>📊 NIFTY Correlation:</strong> ${marketCtx.nifty_correlation}</p>`;
+        }
+        if (marketCtx.sector_strength) {
+            marketHtml += `<p style="margin: 8px 0;"><strong>🏭 Sector Strength:</strong> ${marketCtx.sector_strength}</p>`;
+        }
+        if (marketCtx.risk_sentiment) {
+            marketHtml += `<p style="margin: 8px 0;"><strong>⚠️ Risk Sentiment:</strong> ${marketCtx.risk_sentiment}</p>`;
+        }
+        
+        marketHtml += '</div>';
+        
+        const existingMarket = document.getElementById('ai-market-context');
+        const fundSection = document.getElementById('ai-fundamental-analysis');
+        if (existingMarket) {
+            existingMarket.innerHTML = marketHtml;
+        } else {
+            const marketDiv = document.createElement('div');
+            marketDiv.id = 'ai-market-context';
+            marketDiv.innerHTML = marketHtml;
+            if (fundSection) {
+                fundSection.parentElement.insertBefore(marketDiv, fundSection.nextSibling);
+            }
+        }
+    }
+    
+    // Cost (if available)
+    if (analysis.cost) {
+        document.getElementById('ai-cost').textContent = `$${analysis.cost.toFixed(6)}`;
+    }
+    
+    // Store analysis for "Add Trade" action
+    window.currentAIAnalysis = { analysis, signal };
+}
+
+function closeAIModal() {
+    document.getElementById('ai-modal').style.display = 'none';
+    window.currentAIAnalysis = null;
+}
+
+// ===== AI SCANNER FUNCTIONS =====
+
+function showAIScanModal() {
+    document.getElementById('ai-scan-modal').style.display = 'flex';
+}
+
+function closeAIScanModal() {
+    document.getElementById('ai-scan-modal').style.display = 'none';
+}
+
+async function runAIScan(event) {
+    event.preventDefault();
+    
+    // Get AI config
+    const aiConfig = JSON.parse(localStorage.getItem('ai_config') || '{}');
+    const geminiConfig = aiConfig.gemini;
+    
+    if (!geminiConfig?.api_key) {
+        showToast('⚠️ Please configure Gemini API key in Profile → AI Integration', 'error');
+        setTimeout(() => {
+            window.location.href = '/profile#ai-integration';
+        }, 2000);
+        return;
+    }
+    
+    if (!geminiConfig.enabled) {
+        showToast('⚠️ Please enable Gemini in Profile → AI Integration', 'error');
+        return;
+    }
+    
+    // Get form values
+    const strategy = document.getElementById('ai-strategy').value;
+    const marketCap = document.getElementById('ai-market-cap').value;
+    const sector = document.getElementById('ai-sector').value || null;
+    const maxStocks = parseInt(document.getElementById('ai-max-stocks').value);
+    
+    // Close modal and show status
+    closeAIScanModal();
+    document.getElementById('scanner-status').style.display = 'block';
+    document.getElementById('scanner-progress-text').textContent = '🤖 AI is analyzing the market...';
+    document.getElementById('scanner-progress-fill').style.width = '50%';
+    
+    showToast('🤖 AI is analyzing market conditions and finding stocks...', 'info');
+    
+    try {
+        const response = await fetch('/api/scanner/ai-scan', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                strategy: strategy,
+                api_key: geminiConfig.api_key,
+                market_cap: marketCap,
+                sector: sector,
+                max_stocks: maxStocks,
+                model: geminiConfig.model || 'gemini-1.5-flash'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayAIScanResults(result);
+            showToast(`✅ AI found ${result.stocks.length} high-quality stocks!`, 'success');
+        } else {
+            showToast(`❌ AI scan failed: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('AI scan error:', error);
+        showToast(`❌ Error: ${error.message}`, 'error');
+    } finally {
+        document.getElementById('scanner-status').style.display = 'none';
+    }
+}
+
+function displayAIScanResults(result) {
+    console.log('AI Scan Result:', result);
+    
+    // Show market overview
+    if (result.market_overview) {
+        const overview = result.market_overview;
+        showToast(`📊 Market: ${overview.nifty_outlook || 'Analysis complete'}`, 'info', 5000);
+    }
+    
+    // Convert AI stocks to scanner signal format
+    const signals = result.stocks.map(stock => {
+        const symbol = stock.symbol.replace('.NS', '');
+        
+        // Calculate risk:reward
+        const risk = Math.abs(stock.entry - stock.stop_loss);
+        const reward = Math.abs(stock.target - stock.entry);
+        const rrRatio = risk > 0 ? (reward / risk).toFixed(2) : 0;
+        
+        return {
+            symbol: symbol,
+            entry_price: stock.entry,
+            stop_loss: stock.stop_loss,
+            target: stock.target,
+            target_1: stock.target,
+            current_price: stock.current_price || stock.entry,
+            strategy: result.strategy,
+            risk_reward: rrRatio,
+            
+            // AI-specific fields
+            ai_generated: true,
+            ai_confidence: stock.confidence,
+            ai_sector: stock.sector,
+            ai_company_name: stock.name,
+            ai_technical_setup: stock.technical_setup,
+            ai_fundamental_strength: stock.fundamental_strength,
+            ai_reasoning: stock.why_now,
+            ai_risk_factors: stock.risk_factors?.join(', ') || 'Standard risks',
+            ai_strategy_fit: stock.strategy_fit,
+            
+            // Position sizing (using capital from form)
+            capital: parseInt(document.getElementById('capital').value) || 100000
+        };
+    });
+    
+    // Calculate position sizing for each signal
+    signals.forEach(signal => {
+        const risk = Math.abs(signal.entry_price - signal.stop_loss);
+        if (risk > 0) {
+            const riskAmount = signal.capital * 0.02; // 2% risk
+            signal.shares = Math.floor(riskAmount / risk);
+            signal.investment = signal.shares * signal.entry_price;
+            signal.risk_amount = risk * signal.shares;
+        }
+    });
+    
+    // Display in results table
+    displayResults({
+        signals: signals,
+        scan_date: new Date().toLocaleString('en-IN', { 
+            dateStyle: 'medium', 
+            timeStyle: 'short' 
+        })
+    });
+    
+    // Save to localStorage
+    localStorage.setItem('lastScanResults', JSON.stringify(signals));
+    localStorage.setItem('lastScanTimestamp', new Date().toISOString());
+    localStorage.setItem('lastScanType', 'ai_scan');
+    
+    // Show scan summary
+    if (result.scan_summary) {
+        const summary = result.scan_summary;
+        console.log('📈 Scan Summary:', summary);
+        console.log(`   High Confidence: ${summary.high_confidence_count || 0} stocks`);
+        console.log(`   Best Sectors: ${summary.best_sectors?.join(', ') || 'Various'}`);
+    }
+}
+
+// ===== AI F&O SCANNER FUNCTIONS =====
+
+function showAIFnoModal() {
+    document.getElementById('ai-fno-modal').style.display = 'flex';
+}
+
+function closeAIFnoModal() {
+    document.getElementById('ai-fno-modal').style.display = 'none';
+}
+
+async function runAIFnoScan(event) {
+    event.preventDefault();
+    
+    // Get AI config
+    const aiConfig = JSON.parse(localStorage.getItem('ai_config') || '{}');
+    const geminiConfig = aiConfig.gemini;
+    
+    if (!geminiConfig?.api_key) {
+        showToast('⚠️ Please configure Gemini API key in Profile → AI Integration', 'error');
+        setTimeout(() => {
+            window.location.href = '/profile#ai-integration';
+        }, 2000);
+        return;
+    }
+    
+    if (!geminiConfig.enabled) {
+        showToast('⚠️ Please enable Gemini in Profile → AI Integration', 'error');
+        return;
+    }
+    
+    // Get form values
+    const tradeType = document.getElementById('fno-trade-type').value;
+    const indexOrStock = document.getElementById('fno-index').value;
+    const strategy = document.getElementById('fno-strategy').value;
+    const riskAppetite = document.getElementById('fno-risk').value;
+    const maxTrades = parseInt(document.getElementById('fno-max-trades').value);
+    
+    // Close modal and show status
+    closeAIFnoModal();
+    document.getElementById('scanner-status').style.display = 'block';
+    document.getElementById('scanner-progress-text').textContent = '🎯 AI is analyzing F&O opportunities...';
+    document.getElementById('scanner-progress-fill').style.width = '50%';
+    
+    showToast('🎯 AI is analyzing F&O market for opportunities...', 'info');
+    
+    try {
+        const response = await fetch('/api/scanner/ai-fno-scan', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                api_key: geminiConfig.api_key,
+                trade_type: tradeType,
+                index_or_stock: indexOrStock,
+                strategy: strategy,
+                risk_appetite: riskAppetite,
+                max_trades: maxTrades,
+                model: geminiConfig.model || 'gemini-1.5-flash'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayAIFnoResults(result);
+            showToast(`✅ AI found ${result.trades.length} F&O opportunities!`, 'success');
+        } else {
+            showToast(`❌ F&O scan failed: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('F&O AI scan error:', error);
+        showToast(`❌ Error: ${error.message}`, 'error');
+    } finally {
+        document.getElementById('scanner-status').style.display = 'none';
+    }
+}
+
+function displayAIFnoResults(result) {
+    console.log('F&O AI Scan Result:', result);
+    
+    // Show market context
+    if (result.market_context) {
+        const ctx = result.market_context;
+        const marketMsg = `📊 ${ctx.nifty_trend || 'Market analyzed'} | VIX: ${ctx.vix_level || 'N/A'} | Data: ${ctx.last_candle_analyzed || 'Recent'}`;
+        showToast(marketMsg, 'info', 8000);
+    }
+    
+    // Convert F&O trades to scanner signal format
+    const signals = result.trades.map((trade, index) => {
+        const inst = trade.instrument || {};
+        const entry = trade.entry || {};
+        const exit = trade.exit || {};
+        const greeks = trade.greeks || {};
+        const rr = trade.risk_reward || {};
+        const reasoning = trade.reasoning || {};
+        const dataFresh = trade.data_freshness || {};
+        
+        // Format instrument name
+        const instrumentName = inst.strike 
+            ? `${inst.symbol} ${inst.strike} ${inst.type}`
+            : `${inst.symbol} ${inst.type}`;
+        
+        return {
+            symbol: instrumentName,
+            entry_price: entry.recommended_price || 0,
+            current_price: inst.current_premium || entry.recommended_price || 0,
+            stop_loss: exit.stop_loss || 0,
+            target: exit.target_1 || 0,
+            target_1: exit.target_1 || 0,
+            target_2: exit.target_2 || 0,
+            strategy: result.strategy || 'fno',
+            quality_score: reasoning.confidence || 7,
+            
+            // Risk-reward
+            risk_reward: rr.rr_ratio_t1 || '1:1',
+            rr_ratio: parseFloat(rr.rr_ratio_t1?.split(':')[1] || 1),
+            
+            // Position sizing
+            shares: entry.lots_suggested || 1,
+            investment: rr.margin_required || 0,
+            risk_amount: rr.risk_per_trade || 0,
+            position_value: rr.margin_required || 0,
+            
+            // F&O specific fields
+            is_fno: true,
+            fno_type: inst.type,
+            fno_strike: inst.strike,
+            fno_expiry: inst.expiry,
+            fno_lot_size: inst.lot_size,
+            fno_contract_value: inst.contract_value,
+            
+            // Greeks (for options)
+            greeks: greeks,
+            
+            // Full trade data for detailed view
+            fno_full_data: trade,
+            
+            // Market context
+            market_context: result.market_context,
+            
+            // Data freshness
+            data_freshness: dataFresh.last_candle || result.market_context?.last_candle_analyzed || 'Recent',
+            data_reliability: dataFresh.data_reliability || 'N/A',
+            
+            // AI analysis
+            ai_generated: true,
+            ai_reasoning: reasoning.why_now || 'No reasoning provided',
+            ai_risk_factors: reasoning.risk_factors?.join(', ') || 'Standard risks',
+            ai_confidence: reasoning.confidence || 7,
+            
+            signal_date: new Date().toLocaleDateString('en-IN')
+        };
+    });
+    
+    // Display in results table (same as equity scanner)
+    displayResults({
+        signals: signals,
+        scan_date: new Date().toLocaleString('en-IN', { 
+            dateStyle: 'medium', 
+            timeStyle: 'short' 
+        })
+    });
+    
+    // Save to localStorage
+    localStorage.setItem('lastScanResults', JSON.stringify(signals));
+    localStorage.setItem('lastScanTimestamp', new Date().toISOString());
+    localStorage.setItem('lastScanType', 'ai_fno_scan');
+    
+    // Show scan summary
+    if (result.scan_summary) {
+        const summary = result.scan_summary;
+        console.log('📈 F&O Scan Summary:', summary);
+        console.log(`   Total Opportunities: ${summary.total_opportunities || 0}`);
+        console.log(`   Avg R:R: ${summary.avg_rr_ratio || 'N/A'}`);
+        console.log(`   Total Margin: ₹${summary.total_margin_required?.toLocaleString('en-IN') || 'N/A'}`);
+    }
+}
+
+function showFnoTradesModal(result) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    
+    const trades = result.trades || [];
+    const ctx = result.market_context || {};
+    const summary = result.scan_summary || {};
+    
+    let tradesHtml = '';
+    trades.forEach((trade, index) => {
+        const inst = trade.instrument || {};
+        const entry = trade.entry || {};
+        const exit = trade.exit || {};
+        const greeks = trade.greeks || {};
+        const rr = trade.risk_reward || {};
+        const reasoning = trade.reasoning || {};
+        const dataFresh = trade.data_freshness || {};
+        
+        tradesHtml += `
+            <div class="fno-trade-card" style="background: var(--card-bg); padding: 20px; border-radius: 12px; margin-bottom: 20px; border-left: 4px solid #f5576c;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
+                    <div>
+                        <h4 style="margin: 0; color: var(--text-primary);">
+                            ${index + 1}. ${inst.symbol} ${inst.type}
+                            ${inst.strike ? `@ ${inst.strike}` : ''}
+                        </h4>
+                        <small style="color: var(--text-secondary);">
+                            Expiry: ${inst.expiry} | Lot Size: ${inst.lot_size}
+                        </small>
+                    </div>
+                    <div style="text-align: right;">
+                        <div class="badge" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white; padding: 5px 10px; border-radius: 20px;">
+                            Confidence: ${reasoning.confidence || 'N/A'}/10
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <strong>Entry:</strong> ₹${entry.recommended_price || 'N/A'}<br>
+                        <small style="color: var(--text-secondary);">${entry.entry_timing || ''}</small>
+                    </div>
+                    <div>
+                        <strong>Target 1:</strong> <span class="text-success">₹${exit.target_1 || 'N/A'}</span><br>
+                        <small style="color: var(--text-secondary);">R:R ${rr.rr_ratio_t1 || 'N/A'}</small>
+                    </div>
+                    <div>
+                        <strong>Stop Loss:</strong> <span class="text-danger">₹${exit.stop_loss || 'N/A'}</span><br>
+                        <small style="color: var(--text-secondary);">Risk: ₹${rr.risk_per_trade || 'N/A'}</small>
+                    </div>
+                    <div>
+                        <strong>Margin:</strong> ₹${(rr.margin_required || 0).toLocaleString('en-IN')}<br>
+                        <small style="color: var(--text-secondary);">Profit: ₹${rr.potential_profit_t1 || 'N/A'}</small>
+                    </div>
+                </div>
+                
+                ${inst.type.includes('Option') ? `
+                <div style="background: rgba(102, 126, 234, 0.1); padding: 10px; border-radius: 8px; margin-bottom: 15px;">
+                    <strong>Greeks:</strong> 
+                    Delta: ${greeks.delta || 'N/A'}, 
+                    Theta: ${greeks.theta || 'N/A'}/day, 
+                    IV: ${greeks.iv || 'N/A'}
+                    <br>
+                    <small style="color: var(--text-secondary);">${greeks.delta_interpretation || ''}</small>
+                </div>
+                ` : ''}
+                
+                <div style="margin-bottom: 10px;">
+                    <strong>💡 Why Now:</strong><br>
+                    <p style="color: var(--text-secondary); margin: 5px 0;">${reasoning.why_now || 'No reasoning provided'}</p>
+                </div>
+                
+                <div style="margin-bottom: 10px;">
+                    <strong>⚠️ Risks:</strong><br>
+                    <small style="color: var(--text-secondary);">${(reasoning.risk_factors || []).join(', ')}</small>
+                </div>
+                
+                <div style="background: rgba(255, 193, 7, 0.1); padding: 8px; border-radius: 6px; margin-top: 10px;">
+                    <small style="color: var(--text-secondary);">
+                        📅 <strong>Data Freshness:</strong> ${dataFresh.last_candle || ctx.last_candle_analyzed || 'Recent data'}
+                        ${dataFresh.data_reliability ? `| Reliability: ${dataFresh.data_reliability}` : ''}
+                    </small>
+                </div>
+                
+                <button class="btn btn-sm btn-primary" style="margin-top: 10px; width: 100%;" onclick='showDetailedFnoAnalysis(${JSON.stringify(trade).replace(/'/g, "\\'")}'>
+                    📊 View Detailed Analysis
+                </button>
+            </div>
+        `;
+    });
+    
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                <h3>🎯 AI F&O Trade Recommendations</h3>
+                <button class="btn-close" onclick="this.closest('.modal-overlay').remove()" style="color: white;">×</button>
+            </div>
+            <div class="modal-body">
+                <div style="background: var(--bg-secondary); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">📊 Market Context</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 14px;">
+                        <div><strong>NIFTY:</strong> ${ctx.nifty_level || 'N/A'} - ${ctx.nifty_trend || 'N/A'}</div>
+                        <div><strong>BANKNIFTY:</strong> ${ctx.banknifty_level || 'N/A'} - ${ctx.banknifty_trend || 'N/A'}</div>
+                        <div><strong>VIX:</strong> ${ctx.vix_level || 'N/A'} - ${ctx.vix_trend || 'N/A'}</div>
+                        <div><strong>PCR:</strong> ${ctx.pcr_ratio || 'N/A'} - ${ctx.pcr_interpretation || 'N/A'}</div>
+                    </div>
+                    <p style="margin-top: 10px; color: var(--text-secondary);">
+                        ${ctx.overall_sentiment || 'No sentiment data'}
+                    </p>
+                    <div style="background: rgba(255, 193, 7, 0.2); padding: 8px; border-radius: 6px; margin-top: 10px;">
+                        <small>
+                            📅 <strong>Data as of:</strong> ${ctx.last_candle_analyzed || ctx.data_freshness || 'Recent data'}
+                        </small>
+                    </div>
+                </div>
+                
+                <h4 style="margin-bottom: 15px;">🎯 Recommended Trades (${trades.length})</h4>
+                ${tradesHtml}
+                
+                <div style="background: var(--bg-secondary); padding: 15px; border-radius: 8px; margin-top: 20px;">
+                    <h4>📈 Scan Summary</h4>
+                    <p><strong>Total Opportunities:</strong> ${summary.total_opportunities || trades.length}</p>
+                    <p><strong>Avg R:R:</strong> ${summary.avg_rr_ratio || 'N/A'}</p>
+                    <p><strong>Total Margin Required:</strong> ₹${(summary.total_margin_required || 0).toLocaleString('en-IN')}</p>
+                    <p><strong>Advice:</strong> ${summary.market_advice || 'Trade carefully'}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Close</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Close on background click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+function showDetailedFnoAnalysis(trade) {
+    // Show comprehensive analysis in a new modal
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    
+    const inst = trade.instrument || {};
+    const technical = trade.technical_analysis || {};
+    const fundamentals = trade.fundamentals || {};
+    const tradeManagement = trade.trade_management || {};
+    
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                <h3>📊 Detailed Analysis: ${inst.symbol} ${inst.type}</h3>
+                <button class="btn-close" onclick="this.closest('.modal-overlay').remove()" style="color: white;">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="ai-analysis-section">
+                    <h4>📈 Technical Analysis</h4>
+                    <p><strong>Setup:</strong> ${technical.setup || 'N/A'}</p>
+                    <p><strong>Trend:</strong> ${technical.trend || 'N/A'}</p>
+                    <p><strong>Support:</strong> ${(technical.support_levels || []).join(', ')}</p>
+                    <p><strong>Resistance:</strong> ${(technical.resistance_levels || []).join(', ')}</p>
+                    <p><strong>Indicators:</strong> ${technical.indicators || 'N/A'}</p>
+                </div>
+                
+                <div class="ai-analysis-section">
+                    <h4>📰 Fundamentals & News</h4>
+                    <p><strong>News:</strong> ${fundamentals.news || 'No major news'}</p>
+                    <p><strong>Sector:</strong> ${fundamentals.sector_outlook || 'N/A'}</p>
+                    <p><strong>Events:</strong> ${fundamentals.upcoming_events || 'None'}</p>
+                    <p><strong>Triggers:</strong> ${fundamentals.triggers || 'N/A'}</p>
+                </div>
+                
+                <div class="ai-analysis-section">
+                    <h4>🎯 Trade Management</h4>
+                    <p><strong>Adjustments:</strong> ${tradeManagement.position_adjustments || 'None'}</p>
+                    <p><strong>Hedging:</strong> ${tradeManagement.hedging || 'None suggested'}</p>
+                    <p><strong>Watch For:</strong> ${tradeManagement.watch_for || 'Standard parameters'}</p>
+                    <p><strong>Exit Triggers:</strong> ${tradeManagement.exit_triggers || 'SL hit or target reached'}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Close</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+// ===== MY WATCHLIST AI ANALYZER =====
+
+function showWatchlistModal() {
+    document.getElementById('watchlist-modal').style.display = 'flex';
+}
+
+function closeWatchlistModal() {
+    document.getElementById('watchlist-modal').style.display = 'none';
+}
+
+async function runWatchlistAnalysis(event) {
+    event.preventDefault();
+    
+    // Get AI config
+    const aiConfig = JSON.parse(localStorage.getItem('ai_config') || '{}');
+    const geminiConfig = aiConfig.gemini;
+    
+    if (!geminiConfig?.api_key) {
+        showToast('⚠️ Please configure Gemini API key in Profile → AI Integration', 'error');
+        setTimeout(() => {
+            window.location.href = '/profile#ai-integration';
+        }, 2000);
+        return;
+    }
+    
+    if (!geminiConfig.enabled) {
+        showToast('⚠️ Please enable Gemini in Profile → AI Integration', 'error');
+        return;
+    }
+    
+    // Parse symbols
+    const symbolsText = document.getElementById('watchlist-symbols').value.trim();
+    const symbols = symbolsText
+        .split(/[,\n]/)
+        .map(s => s.trim().toUpperCase())
+        .filter(s => s.length > 0);
+    
+    if (symbols.length === 0) {
+        showToast('⚠️ Please enter at least one stock symbol', 'error');
+        return;
+    }
+    
+    if (symbols.length > 10) {
+        showToast('⚠️ Maximum 10 stocks allowed for detailed analysis', 'error');
+        return;
+    }
+    
+    const strategy = document.getElementById('watchlist-strategy').value;
+    
+    // Close modal and show status
+    closeWatchlistModal();
+    document.getElementById('scanner-status').style.display = 'block';
+    document.getElementById('scanner-progress-text').textContent = `⭐ Analyzing your ${symbols.length} stocks...`;
+    document.getElementById('scanner-progress-fill').style.width = '50%';
+    
+    showToast(`⭐ AI is analyzing your ${symbols.length} stocks in detail...`, 'info');
+    
+    try {
+        const response = await fetch('/api/scanner/ai-watchlist-analyze', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                api_key: geminiConfig.api_key,
+                symbols: symbols,
+                strategy: strategy,
+                model: geminiConfig.model || 'gemini-1.5-flash'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayWatchlistResults(result);
+            showToast(`✅ AI analyzed ${result.stocks.length} stocks!`, 'success');
+        } else {
+            showToast(`❌ Analysis failed: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Watchlist analysis error:', error);
+        showToast(`❌ Error: ${error.message}`, 'error');
+    } finally {
+        document.getElementById('scanner-status').style.display = 'none';
+    }
+}
+
+function displayWatchlistResults(result) {
+    console.log('Watchlist Analysis Result:', result);
+    
+    // Show summary
+    if (result.summary) {
+        const summary = result.summary;
+        showToast(`📊 ${summary.buy_count} BUY, ${summary.hold_count} HOLD, ${summary.sell_count} SELL | Top Pick: ${summary.top_pick}`, 'info', 8000);
+    }
+    
+    // Convert to scanner format
+    const signals = result.stocks.map((stock, index) => {
+        // Safe defaults - handle null/undefined values
+        const entryPrice = stock.entry_price ?? stock.current_price ?? 1000;  // Use nullish coalescing
+        const stopLoss = stock.stop_loss ?? (entryPrice * 0.97);  // Default 3% SL if none
+        const target1 = stock.target_1 ?? (entryPrice * 1.05);  // Default 5% target if none
+        const target2 = stock.target_2 ?? (target1 * 1.05);  // Default additional 5%
+        
+        // Calculate percentages (safe division)
+        const riskPct = entryPrice > 0 && stopLoss > 0 ? Math.abs(((entryPrice - stopLoss) / entryPrice) * 100) : 3;
+        const rewardPct = entryPrice > 0 && target1 > entryPrice ? ((target1 - entryPrice) / entryPrice) * 100 : 5;
+        const rrRatio = riskPct > 0 ? (rewardPct / riskPct) : 1.5;
+        
+        // Position sizing (safe calculations)
+        const capital = parseFloat(localStorage.getItem('tradingCapital') || '100000');
+        const riskPerTrade = parseFloat(localStorage.getItem('riskPerTrade') || '2');
+        const riskAmount = (capital * riskPerTrade) / 100;
+        const priceRiskDiff = Math.abs(entryPrice - stopLoss);
+        const shares = priceRiskDiff > 0 ? Math.floor(riskAmount / priceRiskDiff) : 0;
+        const positionValue = shares > 0 ? shares * entryPrice : 0;
+        const rewardAmount = shares > 0 && target1 > entryPrice ? shares * (target1 - entryPrice) : 0;
+        
+        return {
+            symbol: stock.symbol,
+            entry_price: entryPrice || 0,
+            current_price: entryPrice || 0,
+            stop_loss: stopLoss || 0,
+            target: target1 || 0,
+            target_1: target1 || 0,
+            target_2: target2 || 0,
+            strategy: result.strategy,
+            quality_score: stock.confidence || 7,
+            
+            // Risk-reward
+            risk_reward: stock.risk_reward || `1:${(rrRatio || 1).toFixed(1)}`,
+            rr_ratio: rrRatio || 1,
+            risk_pct: riskPct || 0,
+            stop_loss_pct: riskPct || 0,
+            reward_pct: rewardPct || 0,
+            target_pct: rewardPct || 0,
+            actual_risk_pct: riskPerTrade || 2,
+            
+            // Position sizing
+            shares: shares || 0,
+            investment: positionValue || 0,
+            risk_amount: riskAmount || 0,
+            reward_amount_per_share: (target1 && entryPrice) ? (target1 - entryPrice) : 0,
+            potential_profit: rewardAmount || 0,
+            potential_loss: riskAmount || 0,
+            position_value: positionValue || 0,
+            capital_allocation_pct: (positionValue && capital) ? ((positionValue / capital) * 100) : 0,
+            
+            // Watchlist specific
+            is_watchlist: true,
+            watchlist_recommendation: stock.recommendation,
+            watchlist_grade: stock.grade,
+            watchlist_priority: stock.priority,
+            watchlist_holding_period: stock.holding_period,
+            
+            // Full data for detailed view
+            watchlist_full_data: stock,
+            
+            // AI analysis
+            ai_generated: true,
+            ai_confidence: stock.confidence,
+            ai_reasoning: stock.reasoning?.why_buy || 'No reasoning provided',
+            ai_risk_factors: stock.reasoning?.risks?.join(', ') || 'Standard risks',
+            
+            signal_date: new Date().toLocaleDateString('en-IN')
+        };
+    });
+    
+    // Display in results table
+    displayResults({
+        signals: signals,
+        scan_date: new Date().toLocaleString('en-IN', { 
+            dateStyle: 'medium', 
+            timeStyle: 'short' 
+        })
+    });
+    
+    // Show results section and summary
+    document.getElementById('scanner-results').style.display = 'block';
+    document.getElementById('results-summary').style.display = 'grid';
+    
+    // Update page title
+    document.querySelector('.page-header h2').textContent = `⭐ My Watchlist AI - Analysis Results`;
+    
+    // Save to localStorage
+    localStorage.setItem('lastScanResults', JSON.stringify(signals));
+    localStorage.setItem('lastScanTimestamp', new Date().toISOString());
+    localStorage.setItem('lastScanType', 'ai_watchlist');
+    
+    // Show summary
+    if (result.summary) {
+        const summary = result.summary;
+        console.log('📈 Watchlist Summary:', summary);
+        console.log(`   Total: ${summary.total_stocks}`);
+        console.log(`   BUY: ${summary.buy_count}, HOLD: ${summary.hold_count}, SELL: ${summary.sell_count}`);
+        console.log(`   Top Pick: ${summary.top_pick}`);
+    }
+}
+
+// ===== EXPAND F&O DETAILS =====
+
+function expandFnoDetails(signal) {
+    const fullData = signal.fno_full_data || {};
+    const inst = fullData.instrument || {};
+    const entry = fullData.entry || {};
+    const exit = fullData.exit || {};
+    const greeks = fullData.greeks || signal.greeks || {};
+    const technical = fullData.technical_analysis || {};
+    const fundamentals = fullData.fundamentals || {};
+    const riskReward = fullData.risk_reward || {};
+    const reasoning = fullData.reasoning || {};
+    const tradeManagement = fullData.trade_management || {};
+    const dataFresh = fullData.data_freshness || {};
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    
+    // Check if it's an option (has Greeks)
+    const isOption = signal.fno_type?.includes('Option') || false;
+    
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                <h3>🎯 ${signal.symbol}</h3>
+                <button class="btn-close" onclick="this.closest('.modal-overlay').remove()" style="color: white;">×</button>
+            </div>
+            <div class="modal-body">
+                <!-- Contract Details -->
+                <div style="background: var(--bg-secondary); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">📋 Contract Details</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                        <div><strong>Type:</strong> ${signal.fno_type || 'N/A'}</div>
+                        <div><strong>Strike:</strong> ${signal.fno_strike || 'N/A'}</div>
+                        <div><strong>Expiry:</strong> ${signal.fno_expiry || 'N/A'}</div>
+                        <div><strong>Lot Size:</strong> ${signal.fno_lot_size || 'N/A'}</div>
+                        <div><strong>Contract Value:</strong> ₹${(signal.fno_contract_value || 0).toLocaleString('en-IN')}</div>
+                        <div><strong>Confidence:</strong> ${signal.ai_confidence}/10</div>
+                    </div>
+                    <div style="background: rgba(255, 193, 7, 0.2); padding: 8px; border-radius: 6px; margin-top: 10px;">
+                        <small>📅 <strong>Data as of:</strong> ${signal.data_freshness} 
+                        ${signal.data_reliability ? `| Reliability: ${signal.data_reliability}` : ''}</small>
+                    </div>
+                </div>
+                
+                <!-- Entry/Exit Strategy -->
+                <div style="background: var(--card-bg); padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #4caf50;">
+                    <h4 style="margin-bottom: 10px;">📍 Entry & Exit Strategy</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div>
+                            <strong>Entry Price:</strong> ₹${signal.entry_price?.toFixed(2) || 'N/A'}<br>
+                            <small style="color: var(--text-secondary);">${entry.entry_timing || 'Market timing'}</small><br>
+                            <small style="color: var(--text-secondary);">Range: ${entry.entry_range || 'N/A'}</small><br>
+                            <small style="color: var(--text-secondary);">Confirmation: ${entry.entry_confirmation || 'N/A'}</small>
+                        </div>
+                        <div>
+                            <strong>Target 1:</strong> <span class="text-success">₹${signal.target_1?.toFixed(2) || 'N/A'}</span><br>
+                            <small style="color: var(--text-secondary);">${exit.target_1_reasoning || 'Conservative target'}</small>
+                        </div>
+                        <div>
+                            <strong>Target 2:</strong> <span class="text-success">₹${signal.target_2?.toFixed(2) || 'N/A'}</span><br>
+                            <small style="color: var(--text-secondary);">${exit.target_2_reasoning || 'Aggressive target'}</small>
+                        </div>
+                        <div>
+                            <strong>Stop Loss:</strong> <span class="text-danger">₹${signal.stop_loss?.toFixed(2) || 'N/A'}</span><br>
+                            <small style="color: var(--text-secondary);">${exit.stop_loss_reasoning || 'Strict SL'}</small><br>
+                            <small style="color: var(--text-secondary);">Trailing: ${exit.trailing_sl || 'None'}</small>
+                        </div>
+                    </div>
+                    ${exit.time_exit ? `<p style="margin-top: 10px;"><strong>⏰ Time Exit:</strong> ${exit.time_exit}</p>` : ''}
+                </div>
+                
+                ${isOption ? `
+                <!-- Greeks Analysis -->
+                <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">🔢 Greeks Analysis</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                        <div>
+                            <strong>Delta:</strong> ${greeks.delta || 'N/A'}<br>
+                            <small style="color: var(--text-secondary);">${greeks.delta_interpretation || 'Directional exposure'}</small>
+                        </div>
+                        <div>
+                            <strong>Gamma:</strong> ${greeks.gamma || 'N/A'}<br>
+                            <small style="color: var(--text-secondary);">Delta sensitivity</small>
+                        </div>
+                        <div>
+                            <strong>Theta:</strong> ${greeks.theta || 'N/A'}/day<br>
+                            <small style="color: var(--text-secondary);">${greeks.theta_interpretation || 'Time decay'}</small>
+                        </div>
+                        <div>
+                            <strong>Vega:</strong> ${greeks.vega || 'N/A'}<br>
+                            <small style="color: var(--text-secondary);">Volatility sensitivity</small>
+                        </div>
+                        <div>
+                            <strong>IV:</strong> ${greeks.iv || 'N/A'}<br>
+                            <small style="color: var(--text-secondary);">${greeks.iv_assessment || 'Implied Volatility'}</small>
+                        </div>
+                    </div>
+                </div>
+                ` : ''}
+                
+                <!-- Risk & Reward -->
+                <div style="background: var(--card-bg); padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ff9800;">
+                    <h4 style="margin-bottom: 10px;">💰 Risk & Reward</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                        <div>
+                            <strong>Position Size:</strong> ${signal.shares || 'N/A'} lot(s)<br>
+                            <small style="color: var(--text-secondary);">${entry.lots_suggested || 1} lot suggested</small>
+                        </div>
+                        <div>
+                            <strong>Margin Required:</strong> ₹${(signal.investment || 0).toLocaleString('en-IN')}<br>
+                            <small style="color: var(--text-secondary);">Broker margin may vary</small>
+                        </div>
+                        <div>
+                            <strong>Risk per Trade:</strong> <span class="text-danger">₹${(signal.risk_amount || 0).toLocaleString('en-IN')}</span><br>
+                            <small style="color: var(--text-secondary);">Max loss</small>
+                        </div>
+                        <div>
+                            <strong>Potential Profit (T1):</strong> <span class="text-success">₹${(riskReward.potential_profit_t1 || 0).toLocaleString('en-IN')}</span><br>
+                            <small style="color: var(--text-secondary);">R:R ${signal.risk_reward || 'N/A'}</small>
+                        </div>
+                        <div>
+                            <strong>Potential Profit (T2):</strong> <span class="text-success">₹${(riskReward.potential_profit_t2 || 0).toLocaleString('en-IN')}</span><br>
+                            <small style="color: var(--text-secondary);">R:R ${riskReward.rr_ratio_t2 || 'N/A'}</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Technical Analysis -->
+                <div class="ai-analysis-section">
+                    <h4 style="color: var(--text-primary); margin-bottom: 10px;">📈 Technical Analysis</h4>
+                    <p><strong>Setup:</strong> ${technical.setup || 'N/A'}</p>
+                    <p><strong>Trend:</strong> ${technical.trend || 'N/A'}</p>
+                    <p><strong>Support:</strong> ${(technical.support_levels || []).join(', ') || 'N/A'}</p>
+                    <p><strong>Resistance:</strong> ${(technical.resistance_levels || []).join(', ') || 'N/A'}</p>
+                    <p><strong>Volume:</strong> ${technical.volume || 'N/A'}</p>
+                    <p><strong>Indicators:</strong> ${technical.indicators || 'N/A'}</p>
+                </div>
+                
+                <!-- Fundamentals & News -->
+                <div class="ai-analysis-section">
+                    <h4 style="color: var(--text-primary); margin-bottom: 10px;">📰 Fundamentals & News</h4>
+                    <p><strong>News:</strong> ${fundamentals.news || 'No major news'}</p>
+                    <p><strong>Sector Outlook:</strong> ${fundamentals.sector_outlook || 'N/A'}</p>
+                    <p><strong>Upcoming Events:</strong> ${fundamentals.upcoming_events || 'None'}</p>
+                    <p><strong>Triggers:</strong> ${fundamentals.triggers || 'N/A'}</p>
+                </div>
+                
+                <!-- Why Now -->
+                <div style="background: rgba(76, 175, 80, 0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">💡 Why Now?</h4>
+                    <p style="color: var(--text-secondary); line-height: 1.6;">
+                        ${signal.ai_reasoning || reasoning.why_now || 'No reasoning provided'}
+                    </p>
+                    <p style="margin-top: 10px;"><strong>Market Alignment:</strong> ${reasoning.market_alignment || 'N/A'}</p>
+                </div>
+                
+                <!-- Risk Factors -->
+                <div style="background: rgba(244, 67, 54, 0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">⚠️ Risk Factors</h4>
+                    <p style="color: var(--text-secondary); line-height: 1.6;">
+                        ${signal.ai_risk_factors || (reasoning.risk_factors || []).join(', ') || 'Standard market risks'}
+                    </p>
+                </div>
+                
+                <!-- Trade Management -->
+                <div class="ai-analysis-section">
+                    <h4 style="color: var(--text-primary); margin-bottom: 10px;">🎯 Trade Management</h4>
+                    <p><strong>Position Adjustments:</strong> ${tradeManagement.position_adjustments || 'None'}</p>
+                    <p><strong>Hedging:</strong> ${tradeManagement.hedging || 'None suggested'}</p>
+                    <p><strong>Watch For:</strong> ${tradeManagement.watch_for || 'Standard parameters'}</p>
+                    <p><strong>Exit Triggers:</strong> ${tradeManagement.exit_triggers || 'SL hit or target reached'}</p>
+                </div>
+                
+                <!-- Market Context -->
+                ${signal.market_context ? `
+                <div style="background: var(--bg-secondary); padding: 15px; border-radius: 8px; margin-top: 20px;">
+                    <h4 style="margin-bottom: 10px;">📊 Market Context</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 14px;">
+                        <div><strong>NIFTY:</strong> ${signal.market_context.nifty_level || 'N/A'} - ${signal.market_context.nifty_trend || 'N/A'}</div>
+                        <div><strong>BANKNIFTY:</strong> ${signal.market_context.banknifty_level || 'N/A'} - ${signal.market_context.banknifty_trend || 'N/A'}</div>
+                        <div><strong>VIX:</strong> ${signal.market_context.vix_level || 'N/A'} - ${signal.market_context.vix_trend || 'N/A'}</div>
+                        <div><strong>PCR:</strong> ${signal.market_context.pcr_ratio || 'N/A'} - ${signal.market_context.pcr_interpretation || 'N/A'}</div>
+                    </div>
+                    <p style="margin-top: 10px; color: var(--text-secondary);">
+                        ${signal.market_context.overall_sentiment || 'No sentiment data'}
+                    </p>
+                </div>
+                ` : ''}
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Close</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Close on background click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+// ===== EXPAND WATCHLIST DETAILS =====
+
+function expandWatchlistDetails(signal) {
+    const fullData = signal.watchlist_full_data || {};
+    const technical = fullData.technical_setup || {};
+    const reasoning = fullData.reasoning || {};
+    const fundamental = fullData.fundamental_view || {};
+    const dataFresh = fullData.data_freshness || {};
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%); color: white;">
+                <h3>⭐ ${signal.symbol} - ${fullData.company_name || signal.symbol}</h3>
+                <button class="btn-close" onclick="this.closest('.modal-overlay').remove()" style="color: white;">×</button>
+            </div>
+            <div class="modal-body">
+                <!-- Recommendation Summary -->
+                <div style="background: var(--bg-secondary); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">📊 Recommendation Summary</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                        <div><strong>Action:</strong> <span style="color: ${signal.watchlist_recommendation === 'BUY' ? '#4caf50' : signal.watchlist_recommendation === 'SELL' ? '#f44336' : '#ff9800'}; font-weight: bold;">${signal.watchlist_recommendation}</span></div>
+                        <div><strong>Grade:</strong> ${signal.watchlist_grade}</div>
+                        <div><strong>Priority:</strong> #${signal.watchlist_priority}</div>
+                        <div><strong>Confidence:</strong> ${signal.ai_confidence}/10</div>
+                        <div><strong>Holding Period:</strong> ${signal.watchlist_holding_period}</div>
+                    </div>
+                    <div style="background: rgba(255, 193, 7, 0.2); padding: 8px; border-radius: 6px; margin-top: 10px;">
+                        <small>📅 <strong>Data as of:</strong> ${dataFresh.last_update || 'Recent'} 
+                        ${dataFresh.reliability ? `| Reliability: ${dataFresh.reliability}` : ''}</small>
+                    </div>
+                </div>
+                
+                <!-- Entry/Exit Strategy -->
+                <div style="background: var(--card-bg); padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #4caf50;">
+                    <h4 style="margin-bottom: 10px;">📍 Entry & Exit Levels</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                        <div>
+                            <strong>Entry Price:</strong> ₹${signal.entry_price?.toFixed(2) || 'N/A'}<br>
+                            <small style="color: var(--text-secondary);">Current: ₹${signal.current_price?.toFixed(2) || 'N/A'}</small>
+                        </div>
+                        <div>
+                            <strong>Stop Loss:</strong> <span class="text-danger">₹${signal.stop_loss?.toFixed(2) || 'N/A'}</span><br>
+                            <small style="color: var(--text-secondary);">Risk: ${signal.risk_pct?.toFixed(1) || 'N/A'}%</small>
+                        </div>
+                        <div>
+                            <strong>Target 1:</strong> <span class="text-success">₹${signal.target_1?.toFixed(2) || 'N/A'}</span><br>
+                            <small style="color: var(--text-secondary);">Reward: +${signal.reward_pct?.toFixed(1) || 'N/A'}%</small>
+                        </div>
+                        <div>
+                            <strong>Target 2:</strong> <span class="text-success">₹${signal.target_2?.toFixed(2) || 'N/A'}</span><br>
+                            <small style="color: var(--text-secondary);">R:R: ${signal.risk_reward || 'N/A'}</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Position Sizing -->
+                <div style="background: rgba(102, 126, 234, 0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">💰 Position Sizing</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                        <div>
+                            <strong>Shares:</strong> ${signal.shares || 'N/A'}<br>
+                            <small style="color: var(--text-secondary);">Based on your risk settings</small>
+                        </div>
+                        <div>
+                            <strong>Investment:</strong> ₹${(signal.investment || 0).toLocaleString('en-IN')}<br>
+                            <small style="color: var(--text-secondary);">${signal.capital_allocation_pct?.toFixed(1) || 'N/A'}% of capital</small>
+                        </div>
+                        <div>
+                            <strong>Risk Amount:</strong> <span class="text-danger">₹${(signal.risk_amount || 0).toLocaleString('en-IN')}</span><br>
+                            <small style="color: var(--text-secondary);">Max loss</small>
+                        </div>
+                        <div>
+                            <strong>Potential Profit:</strong> <span class="text-success">₹${(signal.potential_profit || 0).toLocaleString('en-IN')}</span><br>
+                            <small style="color: var(--text-secondary);">At Target 1</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Technical Setup -->
+                <div class="ai-analysis-section">
+                    <h4 style="color: var(--text-primary); margin-bottom: 10px;">📈 Technical Analysis</h4>
+                    <p><strong>Trend:</strong> ${technical.trend || 'N/A'}</p>
+                    <p><strong>Price vs MA:</strong> ${technical.price_vs_ma || 'N/A'}</p>
+                    <p><strong>RSI:</strong> ${technical.rsi || 'N/A'}</p>
+                    <p><strong>MACD:</strong> ${technical.macd || 'N/A'}</p>
+                    <p><strong>Bollinger Bands:</strong> ${technical.bb_position || 'N/A'}</p>
+                    <p><strong>Support Levels:</strong> ${(technical.support_levels || []).map(s => '₹' + s).join(', ') || 'N/A'}</p>
+                    <p><strong>Resistance Levels:</strong> ${(technical.resistance_levels || []).map(r => '₹' + r).join(', ') || 'N/A'}</p>
+                </div>
+                
+                <!-- Reasoning -->
+                <div style="background: rgba(76, 175, 80, 0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">💡 Why ${signal.watchlist_recommendation}?</h4>
+                    <p style="white-space: pre-wrap;">${reasoning.why_buy || reasoning.why_hold || reasoning.why_sell || 'No reasoning provided'}</p>
+                    ${reasoning.catalyst ? `<p style="margin-top: 10px;"><strong>Catalyst:</strong> ${reasoning.catalyst}</p>` : ''}
+                </div>
+                
+                <!-- Risk Factors -->
+                <div style="background: rgba(244, 67, 54, 0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="margin-bottom: 10px;">⚠️ Risk Factors</h4>
+                    <ul>
+                        ${(reasoning.risks || ['Standard market risks']).map(risk => `<li>${risk}</li>`).join('')}
+                    </ul>
+                </div>
+                
+                <!-- Fundamental View -->
+                <div class="ai-analysis-section">
+                    <h4 style="color: var(--text-primary); margin-bottom: 10px;">🏢 Fundamental View</h4>
+                    <p><strong>Company Strength:</strong> ${fundamental.company_strength || 'N/A'}</p>
+                    <p><strong>Sector Outlook:</strong> ${fundamental.sector_outlook || 'N/A'}</p>
+                    <p><strong>Valuation:</strong> ${fundamental.valuation || 'N/A'}</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Close</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Close on background click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+// ===== SHOW AI DETAILS MODAL =====
+
+function showAIDetails(signal) {
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.style.display = 'flex';
+    
+    modal.innerHTML = `
+        <div class="modal-content ai-modal-content" style="max-width: 700px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <h3>🤖 AI Stock Analysis: ${signal.symbol}</h3>
+                <button class="btn-close" onclick="this.closest('.modal-overlay').remove()" style="color: white;">×</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 20px;">
+                    <h4 style="color: var(--text-primary); margin-bottom: 10px;">
+                        ${signal.ai_company_name || signal.symbol}
+                        <span class="badge" style="background: #667eea; color: white; margin-left: 10px;">${signal.ai_sector || 'N/A'}</span>
+                    </h4>
+                    <div style="display: flex; gap: 20px; margin-bottom: 15px;">
+                        <div>
+                            <strong>Entry:</strong> ₹${signal.entry_price?.toFixed(2) || 'N/A'}
+                        </div>
+                        <div>
+                            <strong>Stop Loss:</strong> <span class="text-danger">₹${signal.stop_loss?.toFixed(2) || 'N/A'}</span>
+                        </div>
+                        <div>
+                            <strong>Target:</strong> <span class="text-success">₹${signal.target?.toFixed(2) || 'N/A'}</span>
+                        </div>
+                        <div>
+                            <strong>R:R:</strong> ${signal.risk_reward || 'N/A'}:1
+                        </div>
+                    </div>
+                    <div style="background: rgba(102, 126, 234, 0.1); padding: 10px; border-radius: 8px; border-left: 3px solid #667eea;">
+                        <strong>AI Confidence:</strong> ${signal.ai_confidence}/10
+                    </div>
+                </div>
+
+                <div class="ai-analysis-section">
+                    <h4 style="color: var(--text-primary); margin-bottom: 10px;">📊 Technical Setup</h4>
+                    <p style="color: var(--text-secondary); line-height: 1.6;">
+                        ${signal.ai_technical_setup || 'No technical analysis available'}
+                    </p>
+                </div>
+
+                <div class="ai-analysis-section">
+                    <h4 style="color: var(--text-primary); margin-bottom: 10px;">💼 Fundamental Strength</h4>
+                    <p style="color: var(--text-secondary); line-height: 1.6;">
+                        ${signal.ai_fundamental_strength || 'No fundamental analysis available'}
+                    </p>
+                </div>
+
+                <div class="ai-analysis-section">
+                    <h4 style="color: var(--text-primary); margin-bottom: 10px;">💡 Why Now?</h4>
+                    <p style="color: var(--text-secondary); line-height: 1.6;">
+                        ${signal.ai_reasoning || 'No reasoning provided'}
+                    </p>
+                </div>
+
+                <div class="ai-analysis-section">
+                    <h4 style="color: var(--text-primary); margin-bottom: 10px;">🎯 Strategy Fit</h4>
+                    <p style="color: var(--text-secondary); line-height: 1.6;">
+                        ${signal.ai_strategy_fit || 'N/A'}
+                    </p>
+                </div>
+
+                <div class="ai-analysis-section">
+                    <h4 style="color: var(--text-primary); margin-bottom: 10px;">⚠️ Risk Factors</h4>
+                    <p style="color: var(--text-secondary); line-height: 1.6;">
+                        ${signal.ai_risk_factors || 'Standard market risks apply'}
+                    </p>
+                </div>
+
+                <div style="margin-top: 20px; padding: 15px; background: var(--bg-secondary); border-radius: 8px;">
+                    <h4 style="margin-bottom: 10px;">📈 Position Details</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div><strong>Shares:</strong> ${signal.shares || 'N/A'}</div>
+                        <div><strong>Investment:</strong> ₹${signal.investment?.toLocaleString('en-IN') || 'N/A'}</div>
+                        <div><strong>Risk Amount:</strong> <span class="text-danger">₹${signal.risk_amount?.toFixed(0) || 'N/A'}</span></div>
+                        <div><strong>Potential Reward:</strong> <span class="text-success">₹${((signal.target - signal.entry_price) * signal.shares)?.toFixed(0) || 'N/A'}</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Close</button>
+                <button class="btn btn-primary" onclick='addTradeFromSignal(${JSON.stringify(signal)}); this.closest(".modal-overlay").remove();'>
+                    📝 Add to Paper Trading
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Close on background click
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.remove();
+        }
+    });
+}
+
+async function addTradeFromAI() {
+    if (!window.currentAIAnalysis) {
+        showToast('No AI analysis available', 'error');
+        return;
+    }
+    
+    const { analysis, signal } = window.currentAIAnalysis;
+    
+    // Update signal with AI recommendations
+    const updatedSignal = {
+        ...signal,
+        entry_price: analysis.entry,
+        stop_loss: analysis.stop_loss,
+        target: analysis.target,
+        notes: `AI Verified (Confidence: ${analysis.confidence}/10) - ${analysis.reasoning.substring(0, 100)}...`
+    };
+    
+    // Add trade
+    await addTradeFromSignal(updatedSignal);
+    
+    closeAIModal();
+    showToast(`Trade added with AI recommendations: ${signal.symbol}`, 'success');
+}
+
+// Close modal when clicking outside
+document.addEventListener('DOMContentLoaded', () => {
+    const modal = document.getElementById('ai-modal');
+    if (modal) {
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                closeAIModal();
+            }
+        });
+    }
+});
+</script>
+
+<style>
+/* TradingView Stock Link Styles */
+.stock-link-inline {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border-bottom: 1px dotted var(--primary-color);
+}
+
+.stock-link-inline:hover {
+    color: #60a5fa;
+    border-bottom: 1px solid #60a5fa;
+    text-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
+/* Trailing SL Config Styles */
+.trade-summary {
+    background: #1a1f2e;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.summary-row:last-child {
+    border-bottom: none;
+}
+
+.form-section h4 {
+    margin-bottom: 10px;
+    color: var(--primary-color);
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.trail-example {
+    background: #1a1f2e;
+    padding: 12px;
+    border-radius: 8px;
+    border-left: 3px solid var(--primary-color);
+}
+
+/* AI Verification Modal Styles */
+.ai-modal-content {
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.ai-signal-summary {
+    background: #1a1f2e;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.signal-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.signal-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+.signal-item .label {
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+.signal-item .value {
+    color: #fff;
+    font-weight: 600;
+}
+
+.ai-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    text-align: center;
+}
+
+.ai-loading .spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid rgba(59, 130, 246, 0.2);
+    border-top-color: #3b82f6;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.ai-error {
+    padding: 20px;
+    text-align: center;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid #ef4444;
+    border-radius: 8px;
+    margin: 20px 0;
+}
+
+.ai-verdict-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #1a1f2e;
+    border-radius: 8px;
+}
+
+.verdict-item {
+    text-align: center;
+}
+
+.verdict-item .label {
+    display: block;
+    color: #9ca3af;
+    font-size: 13px;
+    margin-bottom: 5px;
+}
+
+.verdict-item .value {
+    font-size: 18px;
+}
+
+.ai-recommendations {
+    background: #1a1f2e;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.ai-recommendations h4 {
+    margin-bottom: 12px;
+    color: var(--primary-color);
+}
+
+.recommendations-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.rec-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 4px;
+}
+
+.rec-item .label {
+    color: #9ca3af;
+    font-size: 13px;
+}
+
+.rec-item .value {
+    color: #fff;
+    font-weight: 600;
+}
+
+.ai-reasoning {
+    background: #1a1f2e;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+}
+
+.ai-reasoning h4 {
+    margin-bottom: 10px;
+    color: var(--primary-color);
+}
+
+.ai-reasoning p {
+    color: #d1d5db;
+    line-height: 1.6;
+    margin: 0;
+}
+
+.ai-risk-factors {
+    background: rgba(239, 68, 68, 0.1);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    margin-bottom: 20px;
+}
+
+.ai-risk-factors h4 {
+    margin-bottom: 10px;
+    color: #fca5a5;
+}
+
+.ai-risk-factors ul {
+    margin: 0;
+    padding-left: 20px;
+    color: #fecaca;
+}
+
+.ai-risk-factors li {
+    margin-bottom: 5px;
+}
+
+.ai-cost {
+    text-align: center;
+    padding: 10px;
+    margin-bottom: 15px;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.modal-actions .btn {
+    flex: 1;
+    max-width: 200px;
+}
+</style>
+{% endblock %}
+

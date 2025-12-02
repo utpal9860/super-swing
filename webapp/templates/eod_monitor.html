@@ -1,0 +1,958 @@
+{% extends "base.html" %}
+
+{% block title %}EOD Monitor - SuperTrend Trading{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <div>
+            <h2>🔎 EOD Monitor</h2>
+            <p class="subtitle">End-of-Day trade checker - Monitor all open trades for SL/Target hits</p>
+        </div>
+        <div class="header-actions">
+            <button id="runEodCheckBtn" class="btn btn-primary" onclick="runEodCheck()">
+                <span class="btn-icon">🔄</span> Refresh EOD Check
+            </button>
+            <button id="autoCloseBtn" class="btn btn-secondary" onclick="autoCloseTrades()">
+                <span class="btn-icon">🔄</span> Auto-Close Hits
+            </button>
+        </div>
+    </div>
+
+    <!-- Last Check Info -->
+    <div id="last-check-info" class="info-card" style="display: none;">
+        <div class="info-row">
+            <span class="info-label">Last Check:</span>
+            <span id="last-check-time" class="info-value"></span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Trades Checked:</span>
+            <span id="trades-checked" class="info-value"></span>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <div id="loading" style="display: none; text-align: center; padding: 20px;">
+        <div class="spinner"></div>
+        <p>Checking trades...</p>
+    </div>
+
+    <!-- Summary Cards -->
+    <div id="summary-cards" class="stats-grid" style="display: none;">
+        <div class="stat-card">
+            <div class="stat-icon">🎯</div>
+            <div class="stat-info">
+                <div class="stat-value" id="targets-hit-count">0</div>
+                <div class="stat-label">Targets Hit</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">🛑</div>
+            <div class="stat-info">
+                <div class="stat-value" id="sl-hit-count">0</div>
+                <div class="stat-label">Stop Loss Hit</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">⏱️</div>
+            <div class="stat-info">
+                <div class="stat-value" id="time-stop-count">0</div>
+                <div class="stat-label">Time Stops</div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-info">
+                <div class="stat-value" id="still-open-count">0</div>
+                <div class="stat-label">Still Open</div>
+            </div>
+        </div>
+        <div class="stat-card health-critical" id="health-critical-card" style="display: none;">
+            <div class="stat-icon">🚨</div>
+            <div class="stat-info">
+                <div class="stat-value" id="health-critical-count">0</div>
+                <div class="stat-label">Critical Health</div>
+            </div>
+        </div>
+        <div class="stat-card health-warning" id="health-warning-card" style="display: none;">
+            <div class="stat-icon">⚠️</div>
+            <div class="stat-info">
+                <div class="stat-value" id="health-warning-count">0</div>
+                <div class="stat-label">Health Warnings</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Health Warnings Section -->
+    <div id="health-warnings-section" style="display: none;">
+        <h3>🚨 Health Alerts - Early Exit Recommended</h3>
+        <div id="health-warnings" class="trades-container"></div>
+    </div>
+
+    <!-- Trades to Close Section -->
+    <div id="trades-to-close-section" style="display: none;">
+        <h3>🔔 Trades Needing Action</h3>
+        <div id="trades-to-close" class="trades-container"></div>
+    </div>
+
+    <!-- Open Trades Section -->
+    <div id="open-trades-section" style="display: none;">
+        <h3>📊 Open Trades Status</h3>
+        <div id="open-trades" class="trades-container"></div>
+    </div>
+
+    <!-- No Trades Message -->
+    <div id="no-trades-message" style="display: none; text-align: center; padding: 40px;">
+        <div style="font-size: 48px; margin-bottom: 20px;">📭</div>
+        <h3>No Open Trades</h3>
+        <p>Add some trades in the <a href="/trades">Trades</a> page to start monitoring.</p>
+    </div>
+</div>
+
+<style>
+.info-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+}
+
+.info-label {
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.info-value {
+    color: var(--text-primary);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.stat-card.health-critical {
+    border-color: #ef4444;
+    background: linear-gradient(135deg, var(--card-bg) 0%, rgba(239, 68, 68, 0.05) 100%);
+}
+
+.stat-card.health-warning {
+    border-color: #f59e0b;
+    background: linear-gradient(135deg, var(--card-bg) 0%, rgba(245, 158, 11, 0.05) 100%);
+}
+
+.stat-icon {
+    font-size: 32px;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.stat-label {
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.trades-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.trade-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 20px;
+}
+
+.trade-card.target-hit {
+    border-left: 4px solid #10b981;
+}
+
+.trade-card.sl-hit {
+    border-left: 4px solid #ef4444;
+}
+
+.trade-card.time-stop {
+    border-left: 4px solid #f59e0b;
+}
+
+.trade-card.open {
+    border-left: 4px solid #3b82f6;
+}
+
+.trade-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.trade-symbol {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.trade-status {
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-target {
+    background: #10b98120;
+    color: #10b981;
+}
+
+.status-sl {
+    background: #ef444420;
+    color: #ef4444;
+}
+
+.status-time {
+    background: #f59e0b20;
+    color: #f59e0b;
+}
+
+.status-open {
+    background: #3b82f620;
+    color: #3b82f6;
+}
+
+.trade-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.health-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-top: 10px;
+}
+
+.health-critical {
+    background: #ef444420;
+    color: #ef4444;
+    border: 1px solid #ef4444;
+}
+
+.health-warning {
+    background: #f59e0b20;
+    color: #f59e0b;
+    border: 1px solid #f59e0b;
+}
+
+.health-healthy {
+    background: #10b98120;
+    color: #10b981;
+    border: 1px solid #10b981;
+}
+
+.health-warnings-list {
+    margin-top: 10px;
+    padding: 10px;
+    background: rgba(239, 68, 68, 0.05);
+    border-left: 3px solid #ef4444;
+    border-radius: 4px;
+}
+
+.health-warning-item {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin: 4px 0;
+}
+
+.trade-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid var(--border-color);
+}
+
+.btn-early-exit {
+    flex: 1;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-early-exit:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-early-exit:disabled {
+    background: #9ca3af;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-view-chart {
+    flex: 1;
+    padding: 10px 16px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-view-chart:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+}
+
+.detail-label {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.detail-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.detail-value.positive {
+    color: #10b981;
+}
+
+.detail-value.negative {
+    color: #ef4444;
+}
+
+.trade-actions {
+    margin-top: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+.spinner {
+    border: 4px solid rgba(255, 255, 255, 0.1);
+    border-top: 4px solid var(--primary-color);
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+</style>
+
+<script>
+// Authentication check
+const authToken = localStorage.getItem('auth_token');
+if (!authToken) {
+    window.location.href = '/login';
+}
+
+// Helper function to make authenticated API calls
+async function fetchWithAuth(url, options = {}) {
+    options.headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${authToken}`
+    };
+    return fetch(url, options);
+}
+
+let eodCheckData = null;
+
+// Load cached data on page load
+window.addEventListener('DOMContentLoaded', () => {
+    loadCachedEodData();
+});
+
+function loadCachedEodData() {
+    const cachedData = localStorage.getItem('eod_check_data');
+    if (cachedData) {
+        try {
+            const data = JSON.parse(cachedData);
+            eodCheckData = data;
+            displayEodResults(data);
+        } catch (error) {
+            console.error('Error loading cached EOD data:', error);
+        }
+    }
+}
+
+function saveEodDataToCache(data) {
+    try {
+        localStorage.setItem('eod_check_data', JSON.stringify(data));
+    } catch (error) {
+        console.error('Error saving EOD data to cache:', error);
+    }
+}
+
+async function runEodCheck() {
+    const btn = document.getElementById('runEodCheckBtn');
+    const loading = document.getElementById('loading');
+    const summaryCards = document.getElementById('summary-cards');
+    const tradesToCloseSection = document.getElementById('trades-to-close-section');
+    const openTradesSection = document.getElementById('open-trades-section');
+    const noTradesMessage = document.getElementById('no-trades-message');
+    const lastCheckInfo = document.getElementById('last-check-info');
+    const healthWarningsSection = document.getElementById('health-warnings-section');
+    
+    // Hide everything
+    summaryCards.style.display = 'none';
+    tradesToCloseSection.style.display = 'none';
+    openTradesSection.style.display = 'none';
+    noTradesMessage.style.display = 'none';
+    healthWarningsSection.style.display = 'none';
+    
+    // Show loading
+    loading.style.display = 'block';
+    btn.disabled = true;
+    btn.innerHTML = '<span class="btn-icon">⏳</span> Checking...';
+    
+    try {
+        const response = await fetchWithAuth('/api/eod/check');
+        const data = await response.json();
+        
+        if (!data.success) {
+            throw new Error(data.message || 'Failed to run EOD check');
+        }
+        
+        eodCheckData = data;
+        
+        // Save to cache
+        saveEodDataToCache(data);
+        
+        // Display results
+        displayEodResults(data);
+        
+        showToast('EOD check complete!', 'success');
+        
+    } catch (error) {
+        console.error('Error running EOD check:', error);
+        showToast('Error running EOD check: ' + error.message, 'error');
+    } finally {
+        loading.style.display = 'none';
+        btn.disabled = false;
+        btn.innerHTML = '<span class="btn-icon">🔄</span> Refresh EOD Check';
+    }
+}
+
+function displayEodResults(data) {
+    const summaryCards = document.getElementById('summary-cards');
+    const tradesToCloseSection = document.getElementById('trades-to-close-section');
+    const openTradesSection = document.getElementById('open-trades-section');
+    const noTradesMessage = document.getElementById('no-trades-message');
+    const lastCheckInfo = document.getElementById('last-check-info');
+    const healthWarningsSection = document.getElementById('health-warnings-section');
+    
+    // Update last check info
+    lastCheckInfo.style.display = 'block';
+    document.getElementById('last-check-time').textContent = new Date(data.timestamp).toLocaleString();
+    document.getElementById('trades-checked').textContent = data.trades_checked;
+    
+    // Update summary cards
+    document.getElementById('targets-hit-count').textContent = data.summary.targets_hit;
+    document.getElementById('sl-hit-count').textContent = data.summary.stop_losses_hit;
+    document.getElementById('time-stop-count').textContent = data.summary.time_stops;
+    document.getElementById('still-open-count').textContent = data.summary.still_open;
+    
+    // Show health cards if there are warnings
+    if (data.summary.health_warnings > 0) {
+        document.getElementById('health-warning-count').textContent = data.summary.health_warnings;
+        document.getElementById('health-warning-card').style.display = 'flex';
+    } else {
+        document.getElementById('health-warning-card').style.display = 'none';
+    }
+    if (data.summary.health_critical > 0) {
+        document.getElementById('health-critical-count').textContent = data.summary.health_critical;
+        document.getElementById('health-critical-card').style.display = 'flex';
+    } else {
+        document.getElementById('health-critical-card').style.display = 'none';
+    }
+    
+    summaryCards.style.display = 'grid';
+    
+    // Render health warnings first
+    if (data.health_warnings && data.health_warnings.length > 0) {
+        renderHealthWarnings(data.health_warnings);
+        healthWarningsSection.style.display = 'block';
+    } else {
+        healthWarningsSection.style.display = 'none';
+    }
+    
+    // Render trades to close
+    if (data.trades_to_close && data.trades_to_close.length > 0) {
+        renderTradesToClose(data.trades_to_close);
+        tradesToCloseSection.style.display = 'block';
+    } else {
+        tradesToCloseSection.style.display = 'none';
+    }
+    
+    // Render open trades
+    if (data.trades_still_open && data.trades_still_open.length > 0) {
+        renderOpenTrades(data.trades_still_open);
+        openTradesSection.style.display = 'block';
+    } else {
+        openTradesSection.style.display = 'none';
+    }
+    
+    // Show no trades message if no open trades
+    if (data.trades_checked === 0) {
+        noTradesMessage.style.display = 'block';
+    } else {
+        noTradesMessage.style.display = 'none';
+    }
+    
+    // Update button text
+    const btn = document.getElementById('runEodCheckBtn');
+    btn.innerHTML = '<span class="btn-icon">🔄</span> Refresh EOD Check';
+}
+
+function renderTradesToClose(trades) {
+    const container = document.getElementById('trades-to-close');
+    container.innerHTML = '';
+    
+    trades.forEach(trade => {
+        const status = trade.check_status;
+        const ohlc = trade.ohlc;
+        
+        let statusClass = '';
+        let statusText = '';
+        let statusIcon = '';
+        
+        if (status.status === 'TARGET_HIT') {
+            statusClass = 'target-hit';
+            statusText = 'Target Hit';
+            statusIcon = '🎯';
+        } else if (status.status === 'STOP_LOSS_HIT') {
+            statusClass = 'sl-hit';
+            statusText = 'Stop Loss Hit';
+            statusIcon = '🛑';
+        } else if (status.status === 'TIME_STOP') {
+            statusClass = 'time-stop';
+            statusText = 'Time Stop';
+            statusIcon = '⏱️';
+        }
+        
+        const pnlClass = status.net_pnl >= 0 ? 'positive' : 'negative';
+        const pnlSign = status.net_pnl >= 0 ? '+' : '';
+        
+        // Create TradingView link
+        const cleanSymbol = trade.symbol.replace('.NS', '');
+        const tvLink = `https://www.tradingview.com/chart/?symbol=NSE%3A${cleanSymbol}`;
+        
+        const card = document.createElement('div');
+        card.className = `trade-card ${statusClass}`;
+        card.innerHTML = `
+            <div class="trade-header">
+                <div class="trade-symbol">${statusIcon} <a href="${tvLink}" target="_blank" class="stock-link-inline" title="View ${trade.symbol} on TradingView">${trade.symbol}</a></div>
+                <div class="trade-status status-${statusClass.replace('-hit', '').replace('-stop', '')}">${statusText}</div>
+            </div>
+            <div class="trade-details">
+                <div class="detail-item">
+                    <div class="detail-label">Entry Price</div>
+                    <div class="detail-value">₹${trade.entry_price.toFixed(2)}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Exit Price</div>
+                    <div class="detail-value">₹${status.exit_price.toFixed(2)}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Today's Range</div>
+                    <div class="detail-value">₹${ohlc.low.toFixed(2)} - ₹${ohlc.high.toFixed(2)}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">P&L</div>
+                    <div class="detail-value ${pnlClass}">₹${pnlSign}${status.net_pnl.toFixed(2)} (${pnlSign}${status.pnl_pct.toFixed(1)}%)</div>
+                </div>
+            </div>
+            <div class="trade-actions">
+                <button class="btn btn-primary btn-sm" onclick="closeTradeInWebapp('${trade.id}', ${status.exit_price}, '${status.exit_reason}')">
+                    💹 Close in Webapp
+                </button>
+                <a href="/trades" class="btn btn-secondary btn-sm">View All Trades</a>
+            </div>
+            <div class="mini-chart-card">
+                <h4>Price Movement (3 Months)</h4>
+                <div id="mini-chart-close-${trade.id}" style="height: 220px;"></div>
+            </div>
+        `;
+        container.appendChild(card);
+        
+        // Add mini chart after card is in DOM
+        setTimeout(() => {
+            TradingViewWidgets.createMiniChart(`mini-chart-close-${trade.id}`, trade.symbol);
+        }, 100);
+    });
+}
+
+function renderOpenTrades(trades) {
+    const container = document.getElementById('open-trades');
+    container.innerHTML = '';
+    
+    trades.forEach(trade => {
+        const status = trade.check_status;
+        const ohlc = trade.ohlc;
+        const healthInfo = trade.health_info;
+        
+        const pnlClass = status.pnl_pct >= 0 ? 'positive' : 'negative';
+        const pnlSign = status.pnl_pct >= 0 ? '+' : '';
+        
+        // Create TradingView link
+        const cleanSymbol = trade.symbol.replace('.NS', '');
+        const tvLink = `https://www.tradingview.com/chart/?symbol=NSE%3A${cleanSymbol}`;
+        
+        // Health badge HTML
+        let healthBadgeHTML = '';
+        let healthWarningsHTML = '';
+        if (healthInfo) {
+            const healthClass = healthInfo.status === 'CRITICAL' ? 'health-critical' : 
+                               healthInfo.status === 'WARNING' ? 'health-warning' : 'health-healthy';
+            const healthIcon = healthInfo.status === 'CRITICAL' ? '🚨' : 
+                              healthInfo.status === 'WARNING' ? '⚠️' : '✅';
+            
+            healthBadgeHTML = `
+                <div class="health-badge ${healthClass}">
+                    ${healthIcon} Health: ${healthInfo.health_score}/10 - ${healthInfo.status}
+                </div>
+            `;
+            
+            if (healthInfo.warnings && healthInfo.warnings.length > 0) {
+                healthWarningsHTML = `
+                    <div class="health-warnings-list">
+                        <div style="font-weight: 600; margin-bottom: 6px; font-size: 13px;">
+                            ⚠️ ${healthInfo.recommendation}
+                        </div>
+                        ${healthInfo.warnings.slice(0, 3).map(w => `
+                            <div class="health-warning-item">• ${w}</div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+        }
+        
+        const card = document.createElement('div');
+        card.className = 'trade-card open';
+        card.innerHTML = `
+            <div class="trade-header">
+                <div class="trade-symbol">✅ <a href="${tvLink}" target="_blank" class="stock-link-inline" title="View ${trade.symbol} on TradingView">${trade.symbol}</a></div>
+                <div class="trade-status status-open">Still Open</div>
+            </div>
+            <div class="trade-details">
+                <div class="detail-item">
+                    <div class="detail-label">Entry Price</div>
+                    <div class="detail-value">₹${trade.entry_price.toFixed(2)}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Current Price</div>
+                    <div class="detail-value">₹${status.current_price.toFixed(2)}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Today's Range</div>
+                    <div class="detail-value">₹${ohlc.low.toFixed(2)} - ₹${ohlc.high.toFixed(2)}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Unrealized P&L</div>
+                    <div class="detail-value ${pnlClass}">₹${pnlSign}${status.unrealized_pnl.toFixed(2)} (${pnlSign}${status.pnl_pct.toFixed(1)}%)</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Stop Loss</div>
+                    <div class="detail-value">₹${trade.stop_loss.toFixed(2)}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Target</div>
+                    <div class="detail-value">₹${trade.target.toFixed(2)}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Days Held</div>
+                    <div class="detail-value">${status.days_held} days</div>
+                </div>
+            </div>
+            ${healthBadgeHTML}
+            ${healthWarningsHTML}
+            ${healthInfo && (healthInfo.status === 'CRITICAL' || healthInfo.status === 'WARNING') ? `
+                <div class="trade-actions">
+                    <button class="btn-early-exit" onclick="earlyExit('${trade.id}', '${trade.symbol}', ${status.current_price})">
+                        🚨 Early Exit at ₹${status.current_price.toFixed(2)}
+                    </button>
+                    <button class="btn-view-chart" onclick="window.open('${tvLink}', '_blank')">
+                        📊 View Chart
+                    </button>
+                </div>
+            ` : ''}
+        `;
+        container.appendChild(card);
+    });
+}
+
+function renderHealthWarnings(trades) {
+    const container = document.getElementById('health-warnings');
+    container.innerHTML = '';
+    
+    trades.forEach(trade => {
+        const status = trade.check_status;
+        const ohlc = trade.ohlc;
+        const healthInfo = trade.health_info;
+        
+        const pnlClass = status.pnl_pct >= 0 ? 'positive' : 'negative';
+        const pnlSign = status.pnl_pct >= 0 ? '+' : '';
+        
+        const cleanSymbol = trade.symbol.replace('.NS', '');
+        const tvLink = `https://www.tradingview.com/chart/?symbol=NSE%3A${cleanSymbol}`;
+        
+        const healthClass = healthInfo.status === 'CRITICAL' ? 'health-critical' : 'health-warning';
+        const healthIcon = healthInfo.status === 'CRITICAL' ? '🚨' : '⚠️';
+        
+        const card = document.createElement('div');
+        card.className = `trade-card ${healthClass.replace('health-', '')}`;
+        card.innerHTML = `
+            <div class="trade-header">
+                <div class="trade-symbol">${healthIcon} <a href="${tvLink}" target="_blank" class="stock-link-inline">${trade.symbol}</a></div>
+                <div class="health-badge ${healthClass}">
+                    ${healthIcon} Health: ${healthInfo.health_score}/10 - ${healthInfo.status}
+                </div>
+            </div>
+            <div class="trade-details">
+                <div class="detail-item">
+                    <div class="detail-label">Entry Price</div>
+                    <div class="detail-value">₹${trade.entry_price.toFixed(2)}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Current Price</div>
+                    <div class="detail-value">₹${status.current_price.toFixed(2)}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Current P&L</div>
+                    <div class="detail-value ${pnlClass}">₹${pnlSign}${status.unrealized_pnl.toFixed(2)} (${pnlSign}${status.pnl_pct.toFixed(1)}%)</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Days Held</div>
+                    <div class="detail-value">${status.days_held} days</div>
+                </div>
+            </div>
+            <div class="health-warnings-list">
+                <div style="font-weight: 600; margin-bottom: 8px; font-size: 14px;">
+                    ${healthIcon} ${healthInfo.recommendation}
+                </div>
+                ${healthInfo.warnings.map(w => `
+                    <div class="health-warning-item">• ${w}</div>
+                `).join('')}
+            </div>
+            <div class="trade-actions">
+                <button class="btn-early-exit" onclick="earlyExit('${trade.id}', '${trade.symbol}', ${status.current_price})">
+                    🚨 Early Exit at ₹${status.current_price.toFixed(2)}
+                </button>
+                <button class="btn-view-chart" onclick="window.open('${tvLink}', '_blank')">
+                    📊 View Chart
+                </button>
+            </div>
+        `;
+        container.appendChild(card);
+    });
+}
+
+async function earlyExit(tradeId, symbol, currentPrice) {
+    if (!confirm(`⚠️ Early Exit: ${symbol}\n\nExit at current price: ₹${currentPrice.toFixed(2)}\n\nThis will close the trade before SL/Target is hit.\n\nContinue?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/trades/close/${tradeId}?exit_price=${currentPrice}&exit_reason=early_exit&notes=Early exit due to health warning`, {
+            method: 'PUT'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(`✅ ${symbol} closed early at ₹${currentPrice.toFixed(2)}`, 'success');
+            // Refresh EOD check
+            setTimeout(() => runEodCheck(), 1000);
+        } else {
+            throw new Error(data.message || 'Failed to close trade');
+        }
+    } catch (error) {
+        console.error('Error closing trade:', error);
+        showToast('Error closing trade: ' + error.message, 'error');
+    }
+}
+
+async function closeTradeInWebapp(tradeId, exitPrice, exitReason) {
+    if (!confirm('Close this trade in webapp?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/trades/close/${tradeId}?exit_price=${exitPrice}&exit_reason=${exitReason}&notes=Closed via EOD Monitor`, {
+            method: 'PUT'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast('Trade closed successfully!', 'success');
+            // Refresh EOD check
+            runEodCheck();
+        } else {
+            throw new Error(data.message || 'Failed to close trade');
+        }
+    } catch (error) {
+        console.error('Error closing trade:', error);
+        showToast('Error closing trade: ' + error.message, 'error');
+    }
+}
+
+async function autoCloseTrades() {
+    if (!eodCheckData || !eodCheckData.trades_to_close || eodCheckData.trades_to_close.length === 0) {
+        showToast('No trades to close. Run EOD check first.', 'warning');
+        return;
+    }
+    
+    const count = eodCheckData.trades_to_close.length;
+    if (!confirm(`Auto-close ${count} trade(s)? This will close all trades that hit SL/Target in webapp.`)) {
+        return;
+    }
+    
+    const btn = document.getElementById('autoCloseBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Closing...';
+    
+    try {
+        const response = await fetchWithAuth('/api/eod/auto-close', {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showToast(`Auto-closed ${data.closed_count} trade(s)!`, 'success');
+            // Refresh EOD check
+            runEodCheck();
+        } else {
+            throw new Error(data.message || 'Failed to auto-close trades');
+        }
+    } catch (error) {
+        console.error('Error auto-closing trades:', error);
+        showToast('Error auto-closing trades: ' + error.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="btn-icon">🔄</span> Auto-Close Hits';
+    }
+}
+
+function showToast(message, type) {
+    // Simple toast implementation
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.textContent = message;
+    toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#f59e0b'};
+        color: white;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        z-index: 9999;
+        animation: slideIn 0.3s ease-out;
+    `;
+    
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// Add animation styles
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    @keyframes slideOut {
+        from {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        to {
+            transform: translateX(400px);
+            opacity: 0;
+        }
+    }
+`;
+document.head.appendChild(style);
+</script>
+
+<style>
+/* TradingView Stock Link Styles */
+.stock-link-inline {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border-bottom: 1px dotted var(--primary-color);
+}
+
+.stock-link-inline:hover {
+    color: #60a5fa;
+    border-bottom: 1px solid #60a5fa;
+    text-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+</style>
+{% endblock %}
+

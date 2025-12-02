@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+
+{% block title %}Quality Watchlist - SuperTrend Trading{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h2>⭐ Quality Stock Watchlist</h2>
+        <p class="subtitle">High-quality trending stocks filtered by SuperTrend, Volume, Momentum, MA & RSI</p>
+    </div>
+
+    <!-- Watchlist Actions -->
+    <div class="card">
+        <div class="card-header">
+            <h3>⚙️ Watchlist Management</h3>
+        </div>
+        <div class="card-body">
+            <div class="watchlist-actions">
+                <div class="action-info">
+                    <p><strong>Current Watchlist:</strong> <span id="watchlist-count">Loading...</span> stocks</p>
+                    <p><strong>Last Updated:</strong> <span id="watchlist-updated">-</span></p>
+                </div>
+                
+                <div class="action-buttons">
+                    <button class="btn btn-primary btn-lg" onclick="showGenerateModal()">
+                        🔄 Generate/Update Watchlist
+                    </button>
+                    <button class="btn btn-secondary" onclick="loadWatchlist()">
+                        📋 Reload List
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportWatchlist()">
+                        📥 Export CSV
+                    </button>
+                </div>
+            </div>
+            
+            <div class="info-box">
+                <h4>ℹ️ About Quality Watchlist</h4>
+                <p>The watchlist analyzes all NSE stocks and filters them based on multiple criteria:</p>
+                <ul>
+                    <li>✅ <strong>SuperTrend Signal:</strong> Currently in uptrend</li>
+                    <li>✅ <strong>Volume:</strong> Above average trading volume</li>
+                    <li>✅ <strong>Momentum:</strong> Positive price momentum</li>
+                    <li>✅ <strong>Moving Averages:</strong> Price above key MAs</li>
+                    <li>✅ <strong>RSI:</strong> Optimal range (40-70)</li>
+                </ul>
+                <p><strong>⏱️ Generation Time:</strong> ~15-20 minutes for full analysis (1667 stocks)</p>
+                <p><strong>📅 Recommended Frequency:</strong> Once per month</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generation Status -->
+    <div id="generation-status" class="card" style="display: none;">
+        <div class="card-body">
+            <div class="progress-container">
+                <div class="progress-header">
+                    <h4>🔄 Generating Watchlist...</h4>
+                    <span id="generation-progress-text">Starting analysis...</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="generation-progress-fill" style="width: 0%"></div>
+                </div>
+                <p class="progress-details">
+                    Qualified stocks: <strong id="qualified-count">0</strong>
+                </p>
+                <p class="text-muted"><em>This may take 15-20 minutes. You can leave this page and come back later.</em></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search -->
+    <div class="card">
+        <div class="card-body">
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="🔍 Search stocks by symbol..." onkeyup="searchWatchlist()">
+            </div>
+        </div>
+    </div>
+
+    <!-- Watchlist Table -->
+    <div id="watchlist-results" class="card table-card">
+        <div class="card-header">
+            <h3>📊 Quality Stocks</h3>
+            <span id="visible-count"></span>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive" id="watchlist-table">
+                <p class="text-muted text-center">Loading watchlist...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Generate Watchlist Modal -->
+<div id="generate-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>🔄 Generate Quality Watchlist</h3>
+            <button class="modal-close" onclick="closeGenerateModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="generate-form">
+                <div class="form-group">
+                    <label for="max_analyze">Max Stocks to Analyze</label>
+                    <input type="number" id="max_analyze" name="max_analyze" placeholder="Leave empty for ALL stocks (recommended)">
+                    <small>Default: Analyze all 1667 NSE stocks. Set a number to limit (e.g., 300 for testing)</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="min_score">Minimum Quality Score</label>
+                    <input type="number" id="min_score" name="min_score" value="50" min="0" max="100" required>
+                    <small>Stocks must score at least this to qualify (0-100+)</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="parallel">Parallel Workers</label>
+                    <input type="number" id="parallel" name="parallel" value="20" min="1" max="50" required>
+                    <small>Higher = faster, but uses more resources (recommended: 20)</small>
+                </div>
+                
+                <div class="warning-box">
+                    <p><strong>⚠️ Important:</strong></p>
+                    <ul>
+                        <li>Full analysis takes 15-20 minutes</li>
+                        <li>This will update the existing watchlist</li>
+                        <li>Scanner will use the updated list</li>
+                    </ul>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeGenerateModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Start Generation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Authentication check
+const authToken = localStorage.getItem('auth_token');
+if (!authToken) {
+    window.location.href = '/login';
+}
+
+// Helper function to make authenticated API calls
+async function fetchWithAuth(url, options = {}) {
+    options.headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${authToken}`
+    };
+    return fetch(url, options);
+}
+
+let watchlistData = [];
+let generationInterval = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadWatchlist();
+});
+
+async function loadWatchlist() {
+    try {
+        const response = await fetchWithAuth('/api/watchlist/current');
+        const data = await response.json();
+        
+        if (data.success) {
+            watchlistData = data.stocks;
+            document.getElementById('watchlist-count').textContent = data.count;
+            document.getElementById('watchlist-updated').textContent = data.last_updated || 'Never';
+            displayWatchlist(watchlistData);
+        } else {
+            document.getElementById('watchlist-table').innerHTML = `
+                <div class="empty-state">
+                    <h3>No watchlist found</h3>
+                    <p>${data.message || 'Generate a watchlist to get started'}</p>
+                    <button class="btn btn-primary" onclick="showGenerateModal()">🔄 Generate Watchlist</button>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading watchlist:', error);
+        showToast('Error loading watchlist', 'error');
+    }
+}
+
+function displayWatchlist(stocks) {
+    const container = document.getElementById('watchlist-table');
+    
+    if (!stocks || stocks.length === 0) {
+        container.innerHTML = '<p class="text-muted text-center">No stocks in watchlist</p>';
+        return;
+    }
+    
+    document.getElementById('visible-count').textContent = `Showing ${stocks.length} stocks`;
+    
+    let html = `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Symbol</th>
+                    <th>Quality Score</th>
+                    <th>Current Price</th>
+                    <th>SuperTrend</th>
+                    <th>Volume Ratio</th>
+                    <th>Momentum</th>
+                    <th>RSI</th>
+                    <th>vs MA20</th>
+                    <th>vs MA50</th>
+                    <th>Signals/Year</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    stocks.forEach((stock, index) => {
+        // Safe access with default values
+        const qualityScore = stock.quality_score || 0;
+        const currentPrice = stock.current_price || 0;
+        const volumeRatio = stock.volume_ratio || 0;
+        const momentum4w = stock.momentum_4w || 0;
+        const rsi = stock.rsi || 50;
+        const vsMa20 = stock.vs_ma20 || 0;
+        const vsMa50 = stock.vs_ma50 || 0;
+        const supertrendDir = stock.supertrend_dir || 0;
+        
+        const scoreClass = qualityScore >= 80 ? 'score-high' : qualityScore >= 60 ? 'score-medium' : 'score-low';
+        const trendClass = supertrendDir > 0 ? 'text-success' : 'text-danger';
+        const rsiClass = rsi >= 40 && rsi <= 70 ? 'text-success' : 'text-warning';
+        
+        // Create TradingView link
+        const cleanSymbol = stock.symbol.replace('.NS', '');
+        const tvLink = `https://www.tradingview.com/chart/?symbol=NSE%3A${cleanSymbol}`;
+        
+        html += `
+            <tr>
+                <td><strong>${index + 1}</strong></td>
+                <td><strong><a href="${tvLink}" target="_blank" class="stock-link-inline" title="View ${stock.symbol} on TradingView">📊 ${stock.symbol}</a></strong></td>
+                <td><span class="score-badge ${scoreClass}">${qualityScore}</span></td>
+                <td>₹${currentPrice.toFixed(2)}</td>
+                <td class="${trendClass}">${supertrendDir > 0 ? '📈 UP' : '📉 DOWN'}</td>
+                <td>${volumeRatio.toFixed(2)}x</td>
+                <td class="${momentum4w >= 0 ? 'text-success' : 'text-danger'}">${momentum4w.toFixed(1)}%</td>
+                <td class="${rsiClass}">${rsi.toFixed(0)}</td>
+                <td class="${vsMa20 >= 0 ? 'text-success' : 'text-danger'}">${vsMa20.toFixed(1)}%</td>
+                <td class="${vsMa50 >= 0 ? 'text-success' : 'text-danger'}">${vsMa50.toFixed(1)}%</td>
+                <td>${stock.signals_per_year || '-'}</td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function searchWatchlist() {
+    const query = document.getElementById('search-input').value.toUpperCase();
+    
+    if (!query) {
+        displayWatchlist(watchlistData);
+        return;
+    }
+    
+    const filtered = watchlistData.filter(stock => 
+        stock.symbol.toUpperCase().includes(query)
+    );
+    
+    displayWatchlist(filtered);
+}
+
+function showGenerateModal() {
+    document.getElementById('generate-modal').style.display = 'flex';
+}
+
+function closeGenerateModal() {
+    document.getElementById('generate-modal').style.display = 'none';
+}
+
+document.getElementById('generate-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const maxAnalyze = formData.get('max_analyze');
+    
+    const requestData = {
+        max_analyze: maxAnalyze ? parseInt(maxAnalyze) : null,
+        min_score: parseInt(formData.get('min_score')),
+        parallel: parseInt(formData.get('parallel'))
+    };
+    
+    try {
+        const response = await fetchWithAuth('/api/watchlist/generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(requestData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Watchlist generation started! This will take 15-20 minutes.', 'success');
+            closeGenerateModal();
+            document.getElementById('generation-status').style.display = 'block';
+            monitorGeneration();
+        } else {
+            showToast(result.message || 'Failed to start generation', 'error');
+        }
+    } catch (error) {
+        showToast('Error starting generation', 'error');
+    }
+});
+
+function monitorGeneration() {
+    let pollCount = 0;
+    const maxPolls = 600; // Stop after 30 minutes (600 * 3 seconds)
+    
+    generationInterval = setInterval(async () => {
+        pollCount++;
+        
+        // Stop polling after max attempts
+        if (pollCount >= maxPolls) {
+            clearInterval(generationInterval);
+            document.getElementById('generation-status').style.display = 'none';
+            showToast('Generation monitoring stopped. Check status manually.', 'info');
+            return;
+        }
+        
+        try {
+            const response = await fetchWithAuth('/api/watchlist/status');
+            const status = await response.json();
+            
+            if (status.success) {
+                updateGenerationStatus(status.status);
+                
+                // Stop if generation completed OR if not running and has error/completion
+                if (!status.status.is_running) {
+                    clearInterval(generationInterval);
+                    document.getElementById('generation-status').style.display = 'none';
+                    
+                    if (status.status.last_updated) {
+                        showToast('Watchlist generation completed!', 'success');
+                        loadWatchlist();
+                    } else {
+                        showToast('Generation stopped. Check console for errors.', 'error');
+                        loadWatchlist(); // Try to load anyway
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Error monitoring generation:', error);
+            clearInterval(generationInterval);
+            document.getElementById('generation-status').style.display = 'none';
+            showToast('Error monitoring generation', 'error');
+        }
+    }, 3000);
+}
+
+// Clear interval when page unloads
+window.addEventListener('beforeunload', () => {
+    if (generationInterval) {
+        clearInterval(generationInterval);
+    }
+});
+
+function updateGenerationStatus(status) {
+    document.getElementById('generation-progress-text').textContent = status.current_stock || 'Processing...';
+    document.getElementById('qualified-count').textContent = status.qualified_count || 0;
+    document.getElementById('generation-progress-fill').style.width = status.progress + '%';
+}
+
+function exportWatchlist() {
+    showToast('Watchlist exported! Check data/output/quality_watchlist.csv', 'success');
+}
+</script>
+
+<style>
+/* TradingView Stock Link Styles */
+.stock-link-inline {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border-bottom: 1px dotted var(--primary-color);
+}
+
+.stock-link-inline:hover {
+    color: #60a5fa;
+    border-bottom: 1px solid #60a5fa;
+    text-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+</style>
+{% endblock %}
+

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - SuperTrend Trading Platform</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .auth-container {
+            max-width: 450px;
+            margin: 80px auto;
+            padding: 40px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+        
+        .auth-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .auth-header h1 {
+            font-size: 28px;
+            color: #333;
+            margin-bottom: 8px;
+        }
+        
+        .auth-header p {
+            color: #666;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        .form-group small {
+            display: block;
+            margin-top: 6px;
+            color: #999;
+            font-size: 12px;
+        }
+        
+        .btn-auth {
+            width: 100%;
+            padding: 14px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .btn-auth:hover {
+            background: #45a049;
+        }
+        
+        .btn-auth:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .auth-footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .auth-footer a {
+            color: #4CAF50;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .error-message {
+            padding: 12px 16px;
+            background: #ffebee;
+            color: #c62828;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        
+        .success-message {
+            padding: 12px 16px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        
+        .password-strength {
+            height: 4px;
+            background: #e0e0e0;
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        
+        .password-strength-bar {
+            height: 100%;
+            background: #f44336;
+            width: 0%;
+            transition: width 0.3s, background 0.3s;
+        }
+        
+        .welcome-notice {
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 13px;
+            text-align: center;
+        }
+        
+        .welcome-notice strong {
+            display: block;
+            font-size: 16px;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-header">
+            <h1>🚀 Create Account</h1>
+            <p>Join SuperTrend Trading Platform</p>
+        </div>
+        
+        <div class="welcome-notice">
+            <strong>🎉 Welcome aboard!</strong>
+            Start with paper trading for free. Connect Zerodha later for live trading.
+        </div>
+        
+        <div id="error-msg" class="error-message" style="display: none;"></div>
+        <div id="success-msg" class="success-message" style="display: none;"></div>
+        
+        <form id="register-form">
+            <div class="form-group">
+                <label for="username">Username *</label>
+                <input type="text" id="username" name="username" required autocomplete="username" 
+                       pattern="[a-zA-Z0-9_]{3,20}" minlength="3" maxlength="20">
+                <small>3-20 characters, letters, numbers, and underscores only</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="email">Email *</label>
+                <input type="email" id="email" name="email" required autocomplete="email">
+                <small>We'll never share your email</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="full_name">Full Name (Optional)</label>
+                <input type="text" id="full_name" name="full_name" autocomplete="name">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password *</label>
+                <input type="password" id="password" name="password" required autocomplete="new-password" 
+                       minlength="8">
+                <div class="password-strength">
+                    <div id="password-strength-bar" class="password-strength-bar"></div>
+                </div>
+                <small>Minimum 8 characters</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="confirm_password">Confirm Password *</label>
+                <input type="password" id="confirm_password" name="confirm_password" required 
+                       autocomplete="new-password" minlength="8">
+            </div>
+            
+            <button type="submit" id="register-btn" class="btn-auth">Create Account</button>
+        </form>
+        
+        <div class="auth-footer">
+            Already have an account? <a href="/login">Login</a>
+        </div>
+    </div>
+    
+    <script>
+        const form = document.getElementById('register-form');
+        const registerBtn = document.getElementById('register-btn');
+        const errorMsg = document.getElementById('error-msg');
+        const successMsg = document.getElementById('success-msg');
+        const passwordInput = document.getElementById('password');
+        const passwordStrengthBar = document.getElementById('password-strength-bar');
+        
+        // Check if already logged in
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+            window.location.href = '/dashboard';
+        }
+        
+        // Password strength indicator
+        passwordInput.addEventListener('input', () => {
+            const password = passwordInput.value;
+            let strength = 0;
+            
+            if (password.length >= 8) strength += 25;
+            if (password.length >= 12) strength += 25;
+            if (/[a-z]/.test(password) && /[A-Z]/.test(password)) strength += 25;
+            if (/[0-9]/.test(password)) strength += 15;
+            if (/[^a-zA-Z0-9]/.test(password)) strength += 10;
+            
+            passwordStrengthBar.style.width = strength + '%';
+            
+            if (strength < 40) {
+                passwordStrengthBar.style.background = '#f44336';
+            } else if (strength < 70) {
+                passwordStrengthBar.style.background = '#ff9800';
+            } else {
+                passwordStrengthBar.style.background = '#4CAF50';
+            }
+        });
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const email = document.getElementById('email').value;
+            const full_name = document.getElementById('full_name').value;
+            const password = document.getElementById('password').value;
+            const confirm_password = document.getElementById('confirm_password').value;
+            
+            // Hide messages
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'none';
+            
+            // Validate passwords match
+            if (password !== confirm_password) {
+                errorMsg.textContent = 'Passwords do not match';
+                errorMsg.style.display = 'block';
+                return;
+            }
+            
+            // Disable button
+            registerBtn.disabled = true;
+            registerBtn.textContent = 'Creating account...';
+            
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        username, 
+                        email, 
+                        password,
+                        full_name: full_name || null
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Save token
+                    localStorage.setItem('auth_token', data.access_token);
+                    localStorage.setItem('user_data', JSON.stringify(data.user));
+                    
+                    // Show success and redirect
+                    successMsg.textContent = '✅ Account created! Redirecting to dashboard...';
+                    successMsg.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 1500);
+                } else {
+                    throw new Error(data.detail || 'Registration failed');
+                }
+            } catch (error) {
+                errorMsg.textContent = error.message;
+                errorMsg.style.display = 'block';
+                registerBtn.disabled = false;
+                registerBtn.textContent = 'Create Account';
+            }
+        });
+    </script>
+</body>
+</html>
+

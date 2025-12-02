@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backtest - SuperTrend Trading</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <h1>📈 SuperTrend Trading</h1>
+                <span class="nav-subtitle">Volatility-Adaptive Strategy</span>
+            </div>
+            
+            <div class="nav-links">
+                <a href="/dashboard" class="nav-link">
+                    📊 Dashboard
+                </a>
+                <a href="/scanner" class="nav-link">
+                    🔍 Scanner
+                </a>
+                <a href="/trades" class="nav-link">
+                    💼 Trades
+                </a>
+                <a href="/eod" class="nav-link">
+                    🌙 EOD Monitor
+                </a>
+                <a href="/watchlist" class="nav-link">
+                    ⭐ Watchlist
+                </a>
+                <a href="/market-insights" class="nav-link">
+                    💡 Market Insights
+                </a>
+                <a href="/analytics" class="nav-link">
+                    📊 Analytics
+                </a>
+                <a href="/backtest" class="nav-link active">
+                    🧪 Backtest
+                </a>
+                <a href="/profile" class="nav-link">
+                    👤 Profile
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="page-header">
+            <h2>Strategy Backtesting</h2>
+            <div class="header-actions">
+                <button class="btn btn-primary" onclick="showNewBacktestModal()">
+                    🚀 New Backtest
+                </button>
+                <button class="btn btn-secondary" onclick="loadBacktestResults()">
+                    ↻ Refresh
+                </button>
+            </div>
+        </div>
+
+        <!-- Quick Test Section -->
+        <div class="card">
+            <h3>⚡ Quick Test (Last 3 Months, All Quality Stocks)</h3>
+            <p style="color: #10b981; font-size: 0.9rem; margin-bottom: 1rem;">
+                ✅ All strategies now available for backtesting!
+            </p>
+            <div class="quick-test-buttons">
+                <button class="btn btn-info" onclick="runQuickTest('momentum_btst')">⚡ Momentum BTST</button>
+                <button class="btn btn-info" onclick="runQuickTest('swing_supertrend')">📈 Swing SuperTrend</button>
+                <button class="btn btn-info" onclick="runQuickTest('mean_reversion')">🔄 Mean Reversion</button>
+                <button class="btn btn-info" onclick="runQuickTest('pullback_entry')">🔵 Pullback Entry</button>
+                <button class="btn btn-info" onclick="runQuickTest('swing_breakout_india')">🇮🇳 Swing Breakout</button>
+            </div>
+        </div>
+
+        <!-- Backtest Status -->
+        <div id="backtest-status" class="card" style="display: none;">
+            <h3>⏳ Backtest Running...</h3>
+            <div class="progress-section">
+                <div class="progress-bar">
+                    <div id="backtest-progress-fill" class="progress-fill"></div>
+                </div>
+                <div class="progress-text">
+                    <span id="backtest-progress-text">Initializing...</span>
+                    <span id="backtest-progress-pct">0%</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Backtests -->
+        <div class="card">
+            <h3>📊 Recent Backtests</h3>
+            <div id="backtest-list"></div>
+        </div>
+
+        <!-- Backtest Result Detail (Hidden by default) -->
+        <div id="result-detail" class="card" style="display: none;">
+            <h3>📈 Backtest Results: <span id="result-strategy"></span></h3>
+            <button class="btn btn-secondary btn-sm" style="float: right;" onclick="closeResultDetail()">✕ Close</button>
+            
+            <!-- Summary Cards -->
+            <div class="summary-section">
+                <div class="summary-card">
+                    <h4>Total Return</h4>
+                    <div class="summary-value" id="result-return">₹0</div>
+                    <div class="summary-label" id="result-return-pct">0%</div>
+                </div>
+                <div class="summary-card">
+                    <h4>Win Rate</h4>
+                    <div class="summary-value" id="result-winrate">0%</div>
+                    <div class="summary-label" id="result-trades">0 trades</div>
+                </div>
+                <div class="summary-card">
+                    <h4>Profit Factor</h4>
+                    <div class="summary-value" id="result-pf">0</div>
+                    <div class="summary-label">Total Wins / Losses</div>
+                </div>
+                <div class="summary-card">
+                    <h4>Max Drawdown</h4>
+                    <div class="summary-value text-danger" id="result-dd">0%</div>
+                    <div class="summary-label">Peak to Trough</div>
+                </div>
+            </div>
+
+            <!-- Detailed Metrics -->
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <span class="metric-label">Avg Win:</span>
+                    <span class="metric-value text-success" id="result-avg-win">₹0</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Avg Loss:</span>
+                    <span class="metric-value text-danger" id="result-avg-loss">₹0</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Best Trade:</span>
+                    <span class="metric-value text-success" id="result-best">+0%</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Worst Trade:</span>
+                    <span class="metric-value text-danger" id="result-worst">-0%</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Expectancy:</span>
+                    <span class="metric-value" id="result-expectancy">₹0</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Sharpe Ratio:</span>
+                    <span class="metric-value" id="result-sharpe">-</span>
+                </div>
+            </div>
+
+            <!-- Trade List -->
+            <h4>Trade Log</h4>
+            <div id="result-trades-table"></div>
+        </div>
+    </div>
+
+    <!-- New Backtest Modal -->
+    <div id="backtest-modal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; align-items: center; justify-content: center;">
+        <div class="modal-content" style="max-width: 600px; background: white; border-radius: 12px; position: relative; padding: 0;">
+            <div class="modal-header">
+                <h3>Configure Backtest</h3>
+                <button class="modal-close" onclick="closeBacktestModal()" style="cursor: pointer;">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="backtest-form">
+                    <div class="form-group">
+                        <label>Strategy *</label>
+                        <select id="bt-strategy" required>
+                            <option value="">Select Strategy</option>
+                            <option value="momentum_btst">⚡ Momentum BTST</option>
+                            <option value="swing_supertrend">📈 Swing SuperTrend</option>
+                            <option value="mean_reversion">🔄 Mean Reversion</option>
+                            <option value="pullback_entry">🔵 Pullback Entry</option>
+                            <option value="swing_breakout_india">🇮🇳 Swing Breakout (India)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Start Date *</label>
+                            <input type="date" id="bt-start-date" required>
+                        </div>
+                        <div class="form-group">
+                            <label>End Date *</label>
+                            <input type="date" id="bt-end-date" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Initial Capital (₹) *</label>
+                            <input type="number" id="bt-capital" value="100000" min="10000" step="10000" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Risk per Trade (%) *</label>
+                            <input type="number" id="bt-risk" value="2.0" min="0.5" max="10" step="0.5" required>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Max Positions *</label>
+                            <input type="number" id="bt-max-positions" value="5" min="1" max="20" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Brokerage per Trade (₹) *</label>
+                            <input type="number" id="bt-brokerage" value="20" min="0" step="10" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Stocks to Test</label>
+                        <select id="bt-symbol-source">
+                            <option value="quality">Quality Watchlist (Recommended)</option>
+                            <option value="all">All NSE Stocks</option>
+                            <option value="top100">Top 100 by Market Cap</option>
+                        </select>
+                        <small>Quality watchlist uses pre-filtered high-quality stocks for better results</small>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeBacktestModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="submitBacktest()">🚀 Run Backtest</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div id="toast-container"></div>
+
+    <script src="/static/js/auth.js"></script>
+    <script>
+        // Check auth (optional - comment out if no login system)
+        // requireAuth();
+
+        let backtestInterval = null;
+
+        // Load results on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadBacktestResults();
+            
+            // Set default dates (last year)
+            const today = new Date();
+            const lastYear = new Date(today);
+            lastYear.setFullYear(today.getFullYear() - 1);
+            
+            document.getElementById('bt-end-date').value = today.toISOString().split('T')[0];
+            document.getElementById('bt-start-date').value = lastYear.toISOString().split('T')[0];
+        });
+
+        async function loadBacktestResults() {
+            try {
+                const response = await fetch('/api/backtest/results');
+                const data = await response.json();
+                
+                if (data.success && data.results && data.results.length > 0) {
+                    displayBacktestList(data.results);
+                } else {
+                    document.getElementById('backtest-list').innerHTML = 
+                        '<p class="no-data">No backtests yet. Run your first backtest to get started!</p>';
+                }
+            } catch (error) {
+                console.error('Error loading backtests:', error);
+                showToast('Error loading backtest results', 'error');
+            }
+        }
+
+        function displayBacktestList(results) {
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Strategy</th>
+                            <th>Period</th>
+                            <th>Total Return</th>
+                            <th>Win Rate</th>
+                            <th>Trades</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            results.forEach(r => {
+                const returnClass = r.total_return > 0 ? 'text-success' : 'text-danger';
+                const winRateClass = r.win_rate >= 60 ? 'text-success' : r.win_rate >= 50 ? 'text-warning' : 'text-danger';
+                
+                html += `
+                    <tr>
+                        <td><strong>${formatStrategyName(r.strategy)}</strong></td>
+                        <td>${r.period}</td>
+                        <td class="${returnClass}">
+                            <strong>₹${r.total_return.toLocaleString('en-IN', {maximumFractionDigits: 0})}</strong><br>
+                            <small>(${r.total_return_pct > 0 ? '+' : ''}${r.total_return_pct.toFixed(1)}%)</small>
+                        </td>
+                        <td class="${winRateClass}"><strong>${r.win_rate.toFixed(1)}%</strong></td>
+                        <td>${r.total_trades}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary" onclick="viewBacktestResult('${r.id}')">View</button>
+                            <button class="btn btn-sm btn-danger" onclick="deleteBacktestResult('${r.id}')">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('backtest-list').innerHTML = html;
+        }
+
+        async function viewBacktestResult(resultId) {
+            try {
+                const response = await fetch(`/api/backtest/results/${resultId}`);
+                const data = await response.json();
+                
+                if (data.success && data.result) {
+                    displayResultDetail(data.result);
+                } else {
+                    showToast('Error loading backtest details', 'error');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showToast('Error loading backtest details', 'error');
+            }
+        }
+
+        function displayResultDetail(result) {
+            // Show detail section
+            document.getElementById('result-detail').style.display = 'block';
+            document.getElementById('result-detail').scrollIntoView({ behavior: 'smooth' });
+            
+            // Strategy name
+            document.getElementById('result-strategy').textContent = formatStrategyName(result.strategy_name);
+            
+            // Summary cards
+            const returnClass = result.total_return > 0 ? 'text-success' : 'text-danger';
+            document.getElementById('result-return').textContent = '₹' + result.total_return.toLocaleString('en-IN', {maximumFractionDigits: 0});
+            document.getElementById('result-return').className = 'summary-value ' + returnClass;
+            document.getElementById('result-return-pct').textContent = (result.total_return_pct > 0 ? '+' : '') + result.total_return_pct.toFixed(2) + '%';
+            
+            document.getElementById('result-winrate').textContent = result.win_rate.toFixed(1) + '%';
+            document.getElementById('result-trades').textContent = result.total_trades + ' trades';
+            
+            document.getElementById('result-pf').textContent = result.profit_factor.toFixed(2) + 'x';
+            document.getElementById('result-dd').textContent = result.max_drawdown.toFixed(1) + '%';
+            
+            // Detailed metrics
+            document.getElementById('result-avg-win').textContent = '₹' + result.avg_win.toFixed(0);
+            document.getElementById('result-avg-loss').textContent = '₹' + result.avg_loss.toFixed(0);
+            document.getElementById('result-best').textContent = '+' + result.trades[0]?.profit_loss_pct?.toFixed(1) + '%';
+            document.getElementById('result-worst').textContent = result.trades[result.trades.length - 1]?.profit_loss_pct?.toFixed(1) + '%';
+            document.getElementById('result-expectancy').textContent = '₹' + result.expectancy.toFixed(0);
+            document.getElementById('result-sharpe').textContent = result.sharpe_ratio ? result.sharpe_ratio.toFixed(2) : 'N/A';
+            
+            // Trade list
+            displayTradeList(result.trades);
+        }
+
+        function displayTradeList(trades) {
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Symbol</th>
+                            <th>Entry Date</th>
+                            <th>Exit Date</th>
+                            <th>Entry</th>
+                            <th>Exit</th>
+                            <th>P&L</th>
+                            <th>Return</th>
+                            <th>Days</th>
+                            <th>Exit Reason</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            trades.forEach((t, idx) => {
+                const plClass = t.profit_loss > 0 ? 'text-success' : 'text-danger';
+                
+                html += `
+                    <tr>
+                        <td>${idx + 1}</td>
+                        <td><strong>${t.symbol}</strong></td>
+                        <td>${t.entry_date}</td>
+                        <td>${t.exit_date}</td>
+                        <td>₹${t.entry_price.toFixed(2)}</td>
+                        <td>₹${t.exit_price.toFixed(2)}</td>
+                        <td class="${plClass}"><strong>₹${t.profit_loss.toFixed(0)}</strong></td>
+                        <td class="${plClass}"><strong>${t.profit_loss_pct > 0 ? '+' : ''}${t.profit_loss_pct.toFixed(2)}%</strong></td>
+                        <td>${t.holding_days}</td>
+                        <td>${formatExitReason(t.exit_reason)}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('result-trades-table').innerHTML = html;
+        }
+
+        function closeResultDetail() {
+            document.getElementById('result-detail').style.display = 'none';
+        }
+
+        async function deleteBacktestResult(resultId) {
+            if (!confirm('Delete this backtest result?')) return;
+            
+            try {
+                const response = await fetch(`/api/backtest/results/${resultId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Backtest deleted', 'success');
+                    loadBacktestResults();
+                    closeResultDetail();
+                } else {
+                    showToast('Error deleting backtest', 'error');
+                }
+            } catch (error) {
+                showToast('Error deleting backtest', 'error');
+            }
+        }
+
+        async function runQuickTest(strategy) {
+            if (!confirm(`Run quick backtest for ${formatStrategyName(strategy)}?\n\nThis will test the last 3 months on all quality stocks (~691 symbols).`)) return;
+            
+            try {
+                const response = await fetch(`/api/backtest/quick-test?strategy=${strategy}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Quick backtest started!', 'success');
+                    document.getElementById('backtest-status').style.display = 'block';
+                    monitorBacktest();
+                } else {
+                    showToast(data.error || 'Failed to start backtest', 'error');
+                }
+            } catch (error) {
+                showToast('Error starting backtest', 'error');
+            }
+        }
+
+        function showNewBacktestModal() {
+            console.log('Opening backtest modal');
+            document.getElementById('backtest-modal').style.display = 'flex';
+        }
+
+        function closeBacktestModal() {
+            console.log('Closing backtest modal');
+            const modal = document.getElementById('backtest-modal');
+            if (modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Handle clicks outside modal
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('backtest-modal');
+            const modalContent = modal.querySelector('.modal-content');
+            
+            modal.addEventListener('click', function(e) {
+                // Close if clicking on overlay (not on content)
+                if (e.target === modal) {
+                    closeBacktestModal();
+                }
+            });
+            
+            // Prevent modal content clicks from closing modal
+            modalContent.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        });
+
+        async function submitBacktest() {
+            const form = document.getElementById('backtest-form');
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+            
+            // Get form data
+            const strategy = document.getElementById('bt-strategy').value;
+            const startDate = document.getElementById('bt-start-date').value;
+            const endDate = document.getElementById('bt-end-date').value;
+            const capital = parseFloat(document.getElementById('bt-capital').value);
+            const risk = parseFloat(document.getElementById('bt-risk').value);
+            const maxPositions = parseInt(document.getElementById('bt-max-positions').value);
+            const brokerage = parseFloat(document.getElementById('bt-brokerage').value);
+            const symbolSource = document.getElementById('bt-symbol-source').value;
+            
+            // Load symbols based on source
+            let symbols = [];
+            try {
+                if (symbolSource === 'quality') {
+                    // Load from quality watchlist via API
+                    console.log('Fetching watchlist symbols from API...');
+                    const response = await fetch('/api/watchlist/symbols');
+                    console.log('API Response status:', response.status);
+                    
+                    if (!response.ok) {
+                        console.error('Failed to load watchlist, status:', response.status);
+                        showToast('Failed to load watchlist. Make sure quality watchlist exists.', 'error');
+                        return;
+                    }
+                    
+                    const data = await response.json();
+                    console.log('API Response data:', data);
+                    
+                    if (data.success && data.symbols && data.symbols.length > 0) {
+                        symbols = data.symbols.map(s => s.endsWith('.NS') ? s : s + '.NS');
+                        console.log(`✅ Loaded ${symbols.length} symbols from watchlist`);
+                    } else {
+                        console.error('Watchlist API returned no symbols:', data);
+                        showToast('No symbols in watchlist. Generate quality watchlist first.', 'error');
+                        return;
+                    }
+                } else {
+                    // Placeholder for other sources
+                    showToast('Only quality watchlist is currently supported', 'warning');
+                    return;
+                }
+            } catch (error) {
+                console.error('Error loading symbols:', error);
+                showToast('Error loading symbols: ' + error.message, 'error');
+                return;
+            }
+            
+            if (symbols.length === 0) {
+                showToast('No symbols found. Generate quality watchlist first.', 'error');
+                return;
+            }
+            
+            // Submit backtest
+            try {
+                const response = await fetch('/api/backtest/run', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        strategy,
+                        symbols,
+                        start_date: startDate,
+                        end_date: endDate,
+                        initial_capital: capital,
+                        risk_per_trade: risk,
+                        max_positions: maxPositions,
+                        brokerage_per_trade: brokerage
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast('Backtest started!', 'success');
+                    closeBacktestModal();
+                    document.getElementById('backtest-status').style.display = 'block';
+                    monitorBacktest();
+                } else {
+                    showToast(data.detail || 'Failed to start backtest', 'error');
+                }
+            } catch (error) {
+                showToast('Error starting backtest', 'error');
+            }
+        }
+
+        function monitorBacktest() {
+            backtestInterval = setInterval(async () => {
+                try {
+                    const response = await fetch('/api/backtest/status');
+                    const data = await response.json();
+                    
+                    if (data.success && data.status) {
+                        updateBacktestStatus(data.status);
+                        
+                        if (!data.status.is_running) {
+                            clearInterval(backtestInterval);
+                            document.getElementById('backtest-status').style.display = 'none';
+                            showToast('Backtest completed!', 'success');
+                            loadBacktestResults();
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error monitoring backtest:', error);
+                }
+            }, 2000);
+        }
+
+        function updateBacktestStatus(status) {
+            document.getElementById('backtest-progress-text').textContent = status.message || 'Processing...';
+            document.getElementById('backtest-progress-pct').textContent = status.progress + '%';
+            document.getElementById('backtest-progress-fill').style.width = status.progress + '%';
+        }
+
+        function formatStrategyName(strategy) {
+            const names = {
+                'momentum_btst': '⚡ Momentum BTST',
+                'swing_supertrend': '📈 Swing SuperTrend',
+                'mean_reversion': '🔄 Mean Reversion',
+                'pullback_entry': '🔵 Pullback Entry',
+                'swing_breakout_india': '🇮🇳 Swing Breakout (India)'
+            };
+            return names[strategy] || strategy;
+        }
+
+        function formatExitReason(reason) {
+            const reasons = {
+                'target': '🎯 Target',
+                'stop_loss': '🛑 Stop Loss',
+                'time_stop': '⏰ Time',
+                'backtest_end': '📅 Period End'
+            };
+            return reasons[reason] || reason;
+        }
+
+        // Toast notification system
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.textContent = message;
+            
+            const container = document.getElementById('toast-container');
+            container.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('show');
+            }, 100);
+            
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+    </script>
+
+    <style>
+        .quick-test-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .quick-test-buttons button {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .quick-test-buttons button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #6b7280 !important;
+        }
+        
+        .quick-test-buttons button:disabled:hover {
+            background: #6b7280 !important;
+            transform: none;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+        }
+
+        .metric-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .metric-label {
+            font-weight: 500;
+            color: #666;
+        }
+
+        .metric-value {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-style: italic;
+        }
+    </style>
+</body>
+</html>
+

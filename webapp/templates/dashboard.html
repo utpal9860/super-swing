@@ -1,0 +1,515 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - SuperTrend Trading{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h2>📊 Trading Dashboard</h2>
+        <p class="subtitle">Real-time paper trading performance and portfolio overview</p>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="cards-grid">
+        <div class="card summary-card">
+            <div class="card-icon">💰</div>
+            <div class="card-content">
+                <h3>Net P&L</h3>
+                <p class="card-value" id="net-pnl">₹0.00</p>
+                <span class="card-change" id="pnl-change">0.00%</span>
+            </div>
+        </div>
+
+        <div class="card summary-card">
+            <div class="card-icon">📈</div>
+            <div class="card-content">
+                <h3>Total Trades</h3>
+                <p class="card-value" id="total-trades">0</p>
+                <span class="card-detail">
+                    <span id="open-trades">0</span> open, 
+                    <span id="closed-trades">0</span> closed
+                </span>
+            </div>
+        </div>
+
+        <div class="card summary-card">
+            <div class="card-icon">🎯</div>
+            <div class="card-content">
+                <h3>Win Rate</h3>
+                <p class="card-value" id="win-rate">0%</p>
+                <span class="card-detail">
+                    <span id="winning-trades">0</span> wins, 
+                    <span id="losing-trades">0</span> losses
+                </span>
+            </div>
+        </div>
+
+        <div class="card summary-card">
+            <div class="card-icon">💼</div>
+            <div class="card-content">
+                <h3>Active Capital</h3>
+                <p class="card-value" id="active-capital">₹0</p>
+                <span class="card-detail">Deployed in open positions</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="charts-row">
+        <div class="card chart-card">
+            <div class="card-header">
+                <h3>📊 Cumulative P&L</h3>
+            </div>
+            <div class="card-body">
+                <canvas id="pnl-chart"></canvas>
+            </div>
+        </div>
+
+        <div class="card chart-card">
+            <div class="card-header">
+                <h3>📈 Performance Metrics</h3>
+            </div>
+            <div class="card-body metrics-grid">
+                <div class="metric-item">
+                    <span class="metric-label">Avg Win:</span>
+                    <span class="metric-value text-success" id="avg-win">₹0</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Avg Loss:</span>
+                    <span class="metric-value text-danger" id="avg-loss">₹0</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Profit Factor:</span>
+                    <span class="metric-value" id="profit-factor">0.00</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Expectancy:</span>
+                    <span class="metric-value" id="expectancy">₹0</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Total Brokerage:</span>
+                    <span class="metric-value text-warning" id="total-brokerage">₹0</span>
+                </div>
+                <div class="metric-item">
+                    <span class="metric-label">Gross P&L:</span>
+                    <span class="metric-value" id="gross-pnl">₹0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Open Positions -->
+    <div class="card table-card">
+        <div class="card-header">
+            <h3>💼 Open Positions</h3>
+            <button class="btn btn-primary" onclick="showAddTradeModal()">➕ Add Trade</button>
+        </div>
+        <div class="card-body">
+            <div id="open-positions-table" class="table-responsive">
+                <p class="text-muted">No open positions</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="card table-card">
+        <div class="card-header">
+            <h3>🕒 Recent Activity</h3>
+            <a href="/trades" class="btn btn-secondary">View All</a>
+        </div>
+        <div class="card-body">
+            <div id="recent-activity" class="activity-list">
+                <p class="text-muted">No recent activity</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Trade Modal -->
+<div id="add-trade-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>➕ Add Paper Trade</h3>
+            <button class="modal-close" onclick="closeAddTradeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="add-trade-form">
+                <div class="form-group">
+                    <label for="symbol">Symbol *</label>
+                    <input type="text" id="symbol" name="symbol" required placeholder="e.g., RELIANCE.NS">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="entry_price">Entry Price (₹) *</label>
+                        <input type="number" id="entry_price" name="entry_price" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="shares">Shares *</label>
+                        <input type="number" id="shares" name="shares" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="stop_loss">Stop Loss (₹) *</label>
+                        <input type="number" id="stop_loss" name="stop_loss" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="target">Target (₹) *</label>
+                        <input type="number" id="target" name="target" step="0.01" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="notes">Notes (Optional)</label>
+                    <textarea id="notes" name="notes" rows="2" placeholder="Add any notes about this trade..."></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeAddTradeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Trade</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Authentication check
+const authToken = localStorage.getItem('auth_token');
+if (!authToken) {
+    window.location.href = '/login';
+}
+
+// Helper function to make authenticated API calls
+async function fetchWithAuth(url, options = {}) {
+    options.headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${authToken}`
+    };
+    return fetch(url, options);
+}
+
+// Dashboard functionality
+let pnlChart = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardData();
+    setInterval(loadDashboardData, 30000); // Refresh every 30 seconds
+});
+
+async function loadDashboardData() {
+    try {
+        // Load summary
+        const summaryRes = await fetchWithAuth('/api/trades/summary');
+        const summary = await summaryRes.json();
+        
+        if (summary.success) {
+            updateSummaryCards(summary);
+        }
+        
+        // Load open positions
+        const openRes = await fetchWithAuth('/api/trades/open');
+        const openData = await openRes.json();
+        
+        if (openData.success) {
+            displayOpenPositions(openData.trades);
+        }
+        
+        // Load recent activity
+        const activityRes = await fetchWithAuth('/api/analytics/recent-activity');
+        const activity = await activityRes.json();
+        
+        if (activity.success) {
+            displayRecentActivity(activity.trades);
+        }
+        
+        // Load P&L chart
+        const chartRes = await fetchWithAuth('/api/analytics/pnl-chart');
+        const chartData = await chartRes.json();
+        
+        if (chartData.success) {
+            updatePnLChart(chartData.data);
+        }
+        
+    } catch (error) {
+        console.error('Error loading dashboard:', error);
+        showToast('Error loading dashboard data', 'error');
+    }
+}
+
+function updateSummaryCards(summary) {
+    document.getElementById('net-pnl').textContent = `₹${summary.net_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+    document.getElementById('total-trades').textContent = summary.total_trades;
+    document.getElementById('open-trades').textContent = summary.open_trades;
+    document.getElementById('closed-trades').textContent = summary.closed_trades;
+    document.getElementById('win-rate').textContent = `${summary.win_rate}%`;
+    document.getElementById('winning-trades').textContent = summary.winning_trades;
+    document.getElementById('losing-trades').textContent = summary.losing_trades;
+    document.getElementById('active-capital').textContent = `₹${summary.total_invested.toLocaleString('en-IN')}`;
+    
+    document.getElementById('avg-win').textContent = `₹${summary.avg_win.toLocaleString('en-IN')}`;
+    document.getElementById('avg-loss').textContent = `₹${summary.avg_loss.toLocaleString('en-IN')}`;
+    document.getElementById('profit-factor').textContent = summary.profit_factor || '0.00';
+    document.getElementById('expectancy').textContent = `₹${summary.expectancy.toLocaleString('en-IN')}`;
+    document.getElementById('total-brokerage').textContent = `₹${summary.total_brokerage.toLocaleString('en-IN')}`;
+    document.getElementById('gross-pnl').textContent = `₹${summary.gross_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+    
+    // Update P&L change color
+    const pnlChange = document.getElementById('pnl-change');
+    const changeClass = summary.net_pnl >= 0 ? 'text-success' : 'text-danger';
+    pnlChange.className = `card-change ${changeClass}`;
+}
+
+function displayOpenPositions(trades) {
+    const container = document.getElementById('open-positions-table');
+    
+    if (!trades || trades.length === 0) {
+        container.innerHTML = '<p class="text-muted">No open positions</p>';
+        return;
+    }
+    
+    let html = `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Symbol</th>
+                    <th>Entry Price</th>
+                    <th>Shares</th>
+                    <th>Stop Loss</th>
+                    <th>Target</th>
+                    <th>Position Value</th>
+                    <th>Entry Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    trades.forEach(trade => {
+        // Create TradingView link
+        const cleanSymbol = trade.symbol.replace('.NS', '');
+        const tvLink = `https://www.tradingview.com/chart/?symbol=NSE%3A${cleanSymbol}`;
+        
+        html += `
+            <tr>
+                <td><strong><a href="${tvLink}" target="_blank" class="stock-link-inline" title="View ${trade.symbol} on TradingView">📊 ${trade.symbol}</a></strong></td>
+                <td>₹${trade.entry_price.toFixed(2)}</td>
+                <td>${trade.shares}</td>
+                <td class="text-danger">₹${trade.stop_loss.toFixed(2)}</td>
+                <td class="text-success">₹${trade.target.toFixed(2)}</td>
+                <td>₹${trade.position_value.toLocaleString('en-IN')}</td>
+                <td>${formatDate(trade.entry_date)}</td>
+                <td>
+                    <button class="btn btn-sm btn-success" onclick="closeTradeModal('${trade.id}', ${trade.target}, 'target')">Hit Target</button>
+                    <button class="btn btn-sm btn-danger" onclick="closeTradeModal('${trade.id}', ${trade.stop_loss}, 'stop_loss')">Hit SL</button>
+                    <button class="btn btn-sm btn-secondary" onclick="closeTradeCustom('${trade.id}')">Manual Exit</button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function displayRecentActivity(trades) {
+    const container = document.getElementById('recent-activity');
+    
+    if (!trades || trades.length === 0) {
+        container.innerHTML = '<p class="text-muted">No recent activity</p>';
+        return;
+    }
+    
+    let html = '';
+    trades.slice(0, 10).forEach(trade => {
+        const isOpen = trade.status === 'open';
+        const statusClass = isOpen ? 'status-open' : (trade.net_pnl >= 0 ? 'status-profit' : 'status-loss');
+        
+        // Create TradingView link
+        const cleanSymbol = trade.symbol.replace('.NS', '');
+        const tvLink = `https://www.tradingview.com/chart/?symbol=NSE%3A${cleanSymbol}`;
+        
+        html += `
+            <div class="activity-item">
+                <div class="activity-icon ${statusClass}">
+                    ${isOpen ? '🟡' : (trade.net_pnl >= 0 ? '🟢' : '🔴')}
+                </div>
+                <div class="activity-content">
+                    <strong><a href="${tvLink}" target="_blank" class="stock-link-inline" title="View ${trade.symbol} on TradingView">${trade.symbol}</a></strong>
+                    <span class="activity-detail">
+                        ${trade.shares} shares @ ₹${trade.entry_price.toFixed(2)}
+                        ${!isOpen ? ` → ₹${trade.exit_price.toFixed(2)} (${trade.pct_change.toFixed(2)}%)` : ''}
+                    </span>
+                </div>
+                <div class="activity-time">
+                    ${formatDate(trade.entry_date)}
+                </div>
+                ${!isOpen ? `<div class="activity-pnl ${trade.net_pnl >= 0 ? 'text-success' : 'text-danger'}">
+                    ${trade.net_pnl >= 0 ? '+' : ''}₹${trade.net_pnl.toFixed(2)}
+                </div>` : ''}
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+
+function updatePnLChart(data) {
+    const ctx = document.getElementById('pnl-chart');
+    
+    // Null safety check
+    if (!ctx) {
+        console.warn('P&L chart canvas element not found');
+        return;
+    }
+    
+    if (!data || data.length === 0) {
+        if (ctx.parentElement) {
+            ctx.parentElement.innerHTML = '<p class="text-muted text-center">No trade data to display</p>';
+        }
+        return;
+    }
+    
+    if (pnlChart) {
+        pnlChart.destroy();
+    }
+    
+    pnlChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: data.map(d => formatDate(d.date)),
+            datasets: [{
+                label: 'Cumulative P&L (₹)',
+                data: data.map(d => d.cumulative_pnl),
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '₹' + value.toLocaleString('en-IN');
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function showAddTradeModal() {
+    document.getElementById('add-trade-modal').style.display = 'flex';
+}
+
+function closeAddTradeModal() {
+    document.getElementById('add-trade-modal').style.display = 'none';
+    document.getElementById('add-trade-form').reset();
+}
+
+document.getElementById('add-trade-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(e.target);
+    const tradeData = {
+        id: `TRADE_${Date.now()}`,
+        symbol: formData.get('symbol').toUpperCase(),
+        entry_date: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        entry_price: parseFloat(formData.get('entry_price')),
+        shares: parseInt(formData.get('shares')),
+        stop_loss: parseFloat(formData.get('stop_loss')),
+        target: parseFloat(formData.get('target')),
+        position_value: parseFloat(formData.get('entry_price')) * parseInt(formData.get('shares')),
+        status: 'open',
+        notes: formData.get('notes')
+    };
+    
+    try {
+        const response = await fetchWithAuth('/api/trades/create', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(tradeData)
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Trade added successfully!', 'success');
+            closeAddTradeModal();
+            loadDashboardData();
+        } else {
+            showToast('Failed to add trade', 'error');
+        }
+    } catch (error) {
+        showToast('Error adding trade', 'error');
+    }
+});
+
+async function closeTradeModal(tradeId, exitPrice, reason) {
+    if (!confirm(`Close this trade at ₹${exitPrice.toFixed(2)}?`)) return;
+    
+    try {
+        const response = await fetchWithAuth(`/api/trades/close/${tradeId}?exit_price=${exitPrice}&exit_reason=${reason}`, {
+            method: 'PUT'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Trade closed successfully!', 'success');
+            loadDashboardData();
+        } else {
+            showToast('Failed to close trade', 'error');
+        }
+    } catch (error) {
+        showToast('Error closing trade', 'error');
+    }
+}
+
+function closeTradeCustom(tradeId) {
+    const exitPrice = prompt('Enter exit price:');
+    if (!exitPrice) return;
+    
+    const reason = prompt('Enter exit reason (e.g., manual, supertrend_sell, etc.):') || 'manual';
+    closeTradeModal(tradeId, parseFloat(exitPrice), reason);
+}
+
+function formatDate(dateStr) {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-IN', {month: 'short', day: 'numeric'});
+}
+
+// Dashboard loaded
+</script>
+
+<style>
+/* TradingView Stock Link Styles */
+.stock-link-inline {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border-bottom: 1px dotted var(--primary-color);
+}
+
+.stock-link-inline:hover {
+    color: #60a5fa;
+    border-bottom: 1px solid #60a5fa;
+    text-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+</style>
+{% endblock %}
+

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - SuperTrend Trading Platform</title>
+    
+    <!-- Theme Script (Load First) -->
+    <script src="/static/js/theme.js"></script>
+    
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        body {
+            background: var(--bg-secondary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .auth-container {
+            max-width: 450px;
+            width: 100%;
+            padding: 40px;
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .auth-header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .auth-header h1 {
+            font-size: 28px;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+        
+        .auth-header p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 24px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+            font-weight: 500;
+            font-size: 14px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid var(--input-border);
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+            background: var(--input-bg);
+            color: var(--text-primary);
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        
+        .btn-auth {
+            width: 100%;
+            padding: 14px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .btn-auth:hover {
+            background: #45a049;
+        }
+        
+        .btn-auth:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .auth-footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+        
+        .auth-footer a {
+            color: #4CAF50;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .auth-footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .error-message {
+            padding: 12px 16px;
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        
+        .success-message {
+            padding: 12px 16px;
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+        
+        .paper-mode-notice {
+            padding: 12px 16px;
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+            border-radius: 8px;
+            margin-bottom: 24px;
+            font-size: 13px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <div class="auth-header">
+            <h1>🚀 SuperTrend Trading</h1>
+            <p>Login to access your trading platform</p>
+        </div>
+        
+        <div class="paper-mode-notice">
+            📝 Paper trading is enabled by default. Connect Zerodha for live trading.
+        </div>
+        
+        <div id="error-msg" class="error-message" style="display: none;"></div>
+        <div id="success-msg" class="success-message" style="display: none;"></div>
+        
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required autocomplete="username" placeholder="Enter your username">
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="Enter your password">
+            </div>
+            
+            <button type="submit" id="login-btn" class="btn-auth">Login</button>
+        </form>
+        
+        <div class="auth-footer">
+            Don't have an account? <a href="/register">Create one</a>
+        </div>
+    </div>
+    
+    <script>
+        const form = document.getElementById('login-form');
+        const loginBtn = document.getElementById('login-btn');
+        const errorMsg = document.getElementById('error-msg');
+        const successMsg = document.getElementById('success-msg');
+        
+        // Check if already logged in
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+            window.location.href = '/dashboard';
+        }
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            // Hide messages
+            errorMsg.style.display = 'none';
+            successMsg.style.display = 'none';
+            
+            // Disable button
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Logging in...';
+            
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Save token and user data
+                    localStorage.setItem('auth_token', data.access_token);
+                    localStorage.setItem('user_data', JSON.stringify(data.user));
+                    localStorage.setItem('username', data.user.username);
+                    localStorage.setItem('user_email', data.user.email);
+                    
+                    // Show success and redirect
+                    successMsg.textContent = '✅ Login successful! Redirecting...';
+                    successMsg.style.display = 'block';
+                    
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 1000);
+                } else {
+                    throw new Error(data.detail || 'Login failed');
+                }
+            } catch (error) {
+                errorMsg.textContent = '❌ ' + error.message;
+                errorMsg.style.display = 'block';
+                loginBtn.disabled = false;
+                loginBtn.textContent = 'Login';
+            }
+        });
+    </script>
+</body>
+</html>

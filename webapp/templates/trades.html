@@ -1,0 +1,991 @@
+{% extends "base.html" %}
+
+{% block title %}Paper Trades - SuperTrend Trading{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h2>💼 Paper Trading Portfolio</h2>
+        <p class="subtitle">Track all your virtual trades with real-time P&L</p>
+    </div>
+
+    <!-- Trade Statistics -->
+    <div class="cards-grid">
+        <div class="card summary-card">
+            <div class="card-icon">💰</div>
+            <div class="card-content">
+                <h3>Net P&L</h3>
+                <p class="card-value" id="trades-net-pnl">₹0.00</p>
+                <span class="card-detail">After brokerage (₹20/trade)</span>
+            </div>
+        </div>
+
+        <div class="card summary-card">
+            <div class="card-icon">📊</div>
+            <div class="card-content">
+                <h3>Total Trades</h3>
+                <p class="card-value" id="trades-total">0</p>
+                <span class="card-detail"><span id="trades-open">0</span> open, <span id="trades-closed">0</span> closed</span>
+            </div>
+        </div>
+
+        <div class="card summary-card">
+            <div class="card-icon">🎯</div>
+            <div class="card-content">
+                <h3>Win Rate</h3>
+                <p class="card-value" id="trades-win-rate">0%</p>
+                <span class="card-detail"><span id="trades-winners">0</span>W - <span id="trades-losers">0</span>L</span>
+            </div>
+        </div>
+
+        <div class="card summary-card">
+            <div class="card-icon">📈</div>
+            <div class="card-content">
+                <h3>Expectancy</h3>
+                <p class="card-value" id="trades-expectancy">₹0</p>
+                <span class="card-detail">Per trade average</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Tabs -->
+    <div class="card">
+        <div class="card-header">
+            <div class="tabs">
+                <button class="tab-btn active" onclick="showTab('all')" id="tab-all">All Trades</button>
+                <button class="tab-btn" onclick="showTab('open')" id="tab-open">Open Positions</button>
+                <button class="tab-btn" onclick="showTab('closed')" id="tab-closed">Closed Trades</button>
+            </div>
+            <div class="card-actions">
+                <button class="btn btn-primary" onclick="showAddTradeModal()">➕ Add Trade</button>
+                <button class="btn btn-danger" onclick="clearAllTrades()">🗑️ Clear All</button>
+            </div>
+        </div>
+        <div class="card-body">
+            <div id="trades-table" class="table-responsive">
+                <!-- Table will be loaded here -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Close Trade Modal -->
+<div id="close-trade-modal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>💹 Close Trade</h3>
+            <button class="modal-close" onclick="closeCloseTradeModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <form id="close-trade-form">
+                <input type="hidden" id="close_trade_id" name="trade_id">
+                
+                <div class="trade-summary" id="close-trade-summary">
+                    <!-- Trade details will be shown here -->
+                </div>
+                
+                <div class="form-group">
+                    <label for="close_exit_price">Exit Price (₹) *</label>
+                    <input type="number" id="close_exit_price" name="exit_price" step="0.01" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="close_exit_reason">Exit Reason *</label>
+                    <select id="close_exit_reason" name="exit_reason" required>
+                        <option value="target">Target Hit</option>
+                        <option value="stop_loss">Stop Loss Hit</option>
+                        <option value="supertrend_sell">SuperTrend Sell Signal</option>
+                        <option value="manual">Manual Exit</option>
+                        <option value="time_stop">Time Stop (Max Days)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="close_notes">Notes (Optional)</label>
+                    <textarea id="close_notes" name="notes" rows="2"></textarea>
+                </div>
+                
+                <div id="pnl-preview" class="pnl-preview">
+                    <!-- P&L preview will be shown here -->
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeCloseTradeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Close Trade</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+// Authentication check
+const authToken = localStorage.getItem('auth_token');
+if (!authToken) {
+    window.location.href = '/login';
+}
+
+// Helper function to make authenticated API calls
+async function fetchWithAuth(url, options = {}) {
+    options.headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${authToken}`
+    };
+    return fetch(url, options);
+}
+
+let currentTab = 'all';
+let allTrades = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadTrades();
+});
+
+async function loadTrades() {
+    try {
+        // Load all trades
+        const response = await fetchWithAuth('/api/trades/all');
+        const data = await response.json();
+        
+        if (data.success) {
+            allTrades = data.trades;
+            updateTradeStatistics();
+            displayTrades(currentTab);
+        }
+    } catch (error) {
+        console.error('Error loading trades:', error);
+        showToast('Error loading trades', 'error');
+    }
+}
+
+async function updateTradeStatistics() {
+    try {
+        const response = await fetchWithAuth('/api/trades/summary');
+        const summary = await response.json();
+        
+        if (summary.success) {
+            document.getElementById('trades-net-pnl').textContent = `₹${summary.net_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+            document.getElementById('trades-total').textContent = summary.total_trades;
+            document.getElementById('trades-open').textContent = summary.open_trades;
+            document.getElementById('trades-closed').textContent = summary.closed_trades;
+            document.getElementById('trades-win-rate').textContent = `${summary.win_rate}%`;
+            document.getElementById('trades-winners').textContent = summary.winning_trades;
+            document.getElementById('trades-losers').textContent = summary.losing_trades;
+            document.getElementById('trades-expectancy').textContent = `₹${summary.expectancy.toLocaleString('en-IN')}`;
+        }
+    } catch (error) {
+        console.error('Error updating statistics:', error);
+    }
+}
+
+function showTab(tab) {
+    currentTab = tab;
+    
+    // Update tab buttons
+    document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.getElementById(`tab-${tab}`).classList.add('active');
+    
+    // Display filtered trades
+    displayTrades(tab);
+}
+
+function displayTrades(filter) {
+    let trades = allTrades;
+    
+    if (filter === 'open') {
+        trades = allTrades.filter(t => t.status === 'open');
+    } else if (filter === 'closed') {
+        trades = allTrades.filter(t => t.status === 'closed');
+    }
+    
+    const container = document.getElementById('trades-table');
+    
+    if (trades.length === 0) {
+        container.innerHTML = `<p class="text-muted text-center">No ${filter} trades found</p>`;
+        return;
+    }
+    
+    let html = `
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Symbol</th>
+                    <th>Entry</th>
+                    <th>Current SL</th>
+                    <th>Target</th>
+                    <th>Shares</th>
+                    <th>P&L</th>
+                    <th>Trailing</th>
+                    <th>Exit Reason</th>
+                    <th>Entry Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    trades.forEach(trade => {
+        const isOpen = trade.status === 'open';
+        const isLive = trade.is_live || false;
+        const trailingEnabled = trade.trailing_enabled || false;
+        
+        // Trade type badge
+        const typeBadge = isLive ? 
+            '<span class="badge badge-success" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">🚀 LIVE</span>' : 
+            '<span class="badge badge-info">📝 Paper</span>';
+        
+        // Status badge
+        const statusBadge = isOpen ? 
+            '<span class="badge badge-warning">🟡 Open</span>' : 
+            (trade.net_pnl >= 0 ? 
+                '<span class="badge badge-success">🟢 Profit</span>' : 
+                '<span class="badge badge-danger">🔴 Loss</span>');
+        
+        // Trailing status badge
+        let trailingBadge = '<span class="badge badge-secondary">❌ Disabled</span>';
+        if (trailingEnabled) {
+            const updateCount = trade.sl_updates_count || 0;
+            const trailingType = trade.trailing_type || 'percentage';
+            const trailingDistance = trade.trailing_distance || 3.0;
+            
+            let typeText = '';
+            if (trailingType === 'percentage') {
+                typeText = `${trailingDistance}%`;
+            } else if (trailingType === 'fixed') {
+                typeText = `₹${trailingDistance}`;
+            } else {
+                typeText = `${trailingDistance}x ATR`;
+            }
+            
+            trailingBadge = `
+                <div class="trailing-status-cell">
+                    <span class="badge badge-success" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        🚀 Active (${typeText})
+                    </span>
+                    ${updateCount > 0 ? `<br><small style="color: #10b981;">${updateCount} update${updateCount > 1 ? 's' : ''}</small>` : '<br><small style="color: #888;">No updates yet</small>'}
+                    ${updateCount > 0 || trailingEnabled ? `<br><button class="btn-link" onclick="showTrailHistory('${trade.id}')" style="font-size: 11px; color: var(--primary-color); cursor: pointer; background: none; border: none; text-decoration: underline;">View History</button>` : ''}
+                </div>
+            `;
+        }
+        
+        // Create TradingView link
+        const cleanSymbol = trade.symbol.replace('.NS', '');
+        const tvLink = `https://www.tradingview.com/chart/?symbol=NSE%3A${cleanSymbol}`;
+        
+        // Calculate current P&L for open trades
+        let pnlDisplay = '-';
+        let pnlPctDisplay = '-';
+        if (!isOpen) {
+            const pnl = trade.net_pnl || 0;
+            const pnlPct = trade.pct_change || 0;
+            const pnlClass = pnl >= 0 ? 'text-success' : 'text-danger';
+            pnlDisplay = `<span class="${pnlClass}">₹${pnl.toFixed(2)}</span>`;
+            pnlPctDisplay = `<span class="${pnlClass}">${pnlPct.toFixed(2)}%</span>`;
+        }
+        
+        html += `
+            <tr data-trade-id="${trade.id}">
+                <td>${typeBadge}</td>
+                <td>${statusBadge}</td>
+                <td><strong><a href="${tvLink}" target="_blank" class="stock-link-inline" title="View ${trade.symbol} on TradingView">📊 ${trade.symbol}</a></strong></td>
+                <td>₹${trade.entry_price.toFixed(2)}</td>
+                <td class="text-danger">₹${trade.stop_loss.toFixed(2)}</td>
+                <td class="text-success">₹${trade.target.toFixed(2)}</td>
+                <td>${trade.shares}</td>
+                <td>${pnlDisplay}</td>
+                <td>${trailingBadge}</td>
+                <td>${isOpen ? '-' : (trade.exit_reason || '-')}</td>
+                <td>${trade.entry_date}</td>
+                <td>
+                    ${isOpen ? `
+                        <button class="btn btn-sm btn-primary" onclick='openCloseTradeModal(${JSON.stringify(trade).replace(/"/g, '&quot;')})'>
+                            💹 Close
+                        </button>
+                    ` : ''}
+                    <button class="btn btn-sm btn-danger" onclick="deleteTrade('${trade.id}')">
+                        🗑️
+                    </button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function openCloseTradeModal(trade) {
+    document.getElementById('close_trade_id').value = trade.id;
+    document.getElementById('close_exit_price').value = '';
+    document.getElementById('close_notes').value = '';
+    
+    // Show trade summary
+    const summary = `
+        <div class="info-box">
+            <h4>${trade.symbol}</h4>
+            <p><strong>Entry Price:</strong> ₹${trade.entry_price.toFixed(2)}</p>
+            <p><strong>Shares:</strong> ${trade.shares}</p>
+            <p><strong>Stop Loss:</strong> ₹${trade.stop_loss.toFixed(2)}</p>
+            <p><strong>Target:</strong> ₹${trade.target.toFixed(2)}</p>
+            <p><strong>Position Value:</strong> ₹${trade.position_value.toLocaleString('en-IN')}</p>
+        </div>
+    `;
+    document.getElementById('close-trade-summary').innerHTML = summary;
+    
+    // Calculate P&L preview on price input
+    document.getElementById('close_exit_price').addEventListener('input', function() {
+        const exitPrice = parseFloat(this.value);
+        if (exitPrice) {
+            const grossPnl = (exitPrice - trade.entry_price) * trade.shares;
+            const brokerage = 20 * 2; // Buy + Sell
+            const netPnl = grossPnl - brokerage;
+            const pctChange = ((exitPrice - trade.entry_price) / trade.entry_price) * 100;
+            
+            const pnlClass = netPnl >= 0 ? 'text-success' : 'text-danger';
+            const preview = `
+                <div class="pnl-summary ${pnlClass}">
+                    <h4>Estimated P&L</h4>
+                    <p><strong>Gross:</strong> ₹${grossPnl.toFixed(2)}</p>
+                    <p><strong>Brokerage:</strong> -₹${brokerage}</p>
+                    <p><strong>Net P&L:</strong> ₹${netPnl.toFixed(2)} (${pctChange.toFixed(2)}%)</p>
+                </div>
+            `;
+            document.getElementById('pnl-preview').innerHTML = preview;
+        }
+    });
+    
+    document.getElementById('close-trade-modal').style.display = 'flex';
+}
+
+function closeCloseTradeModal() {
+    document.getElementById('close-trade-modal').style.display = 'none';
+    document.getElementById('close-trade-form').reset();
+    document.getElementById('pnl-preview').innerHTML = '';
+}
+
+document.getElementById('close-trade-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const tradeId = document.getElementById('close_trade_id').value;
+    const exitPrice = parseFloat(document.getElementById('close_exit_price').value);
+    const exitReason = document.getElementById('close_exit_reason').value;
+    const notes = document.getElementById('close_notes').value;
+    
+    try {
+        const response = await fetchWithAuth(`/api/trades/close/${tradeId}?exit_price=${exitPrice}&exit_reason=${exitReason}&notes=${encodeURIComponent(notes)}`, {
+            method: 'PUT'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Trade closed successfully!', 'success');
+            closeCloseTradeModal();
+            loadTrades();
+        } else {
+            showToast('Failed to close trade', 'error');
+        }
+    } catch (error) {
+        showToast('Error closing trade', 'error');
+    }
+});
+
+async function deleteTrade(tradeId) {
+    if (!confirm('Are you sure you want to delete this trade?')) return;
+    
+    try {
+        const response = await fetchWithAuth(`/api/trades/delete/${tradeId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('Trade deleted', 'success');
+            loadTrades();
+        } else {
+            showToast('Failed to delete trade', 'error');
+        }
+    } catch (error) {
+        showToast('Error deleting trade', 'error');
+    }
+}
+
+// Show trail history modal
+function showTrailHistory(tradeId) {
+    const trade = allTrades.find(t => t.id === tradeId);
+    if (!trade) {
+        showToast('Trade not found', 'error');
+        return;
+    }
+    
+    const trailingEnabled = trade.trailing_enabled || false;
+    const updateCount = trade.sl_updates_count || 0;
+    const highestPrice = trade.highest_price || trade.entry_price;
+    const initialSL = trade.initial_sl || trade.stop_loss;
+    const currentSL = trade.stop_loss;
+    const trailingType = trade.trailing_type || 'percentage';
+    const trailingDistance = trade.trailing_distance || 3.0;
+    const lastUpdate = trade.last_sl_update;
+    const lastCheck = trade.last_price_check;
+    
+    let typeText = '';
+    if (trailingType === 'percentage') {
+        typeText = `${trailingDistance}% below highest`;
+    } else if (trailingType === 'fixed') {
+        typeText = `₹${trailingDistance} below highest`;
+    } else {
+        typeText = `${trailingDistance}x ATR below highest`;
+    }
+    
+    const slChange = currentSL - initialSL;
+    const slChangePct = ((slChange / initialSL) * 100);
+    
+    // Read logs if available
+    const logHtml = generateTrailLogHTML(trade);
+    
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 700px;">
+            <div class="modal-header">
+                <h3>🚀 Trailing SL History - ${trade.symbol}</h3>
+                <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">×</button>
+            </div>
+            <div class="modal-body">
+                <!-- Summary Cards -->
+                <div class="trail-summary-grid">
+                    <div class="trail-summary-card">
+                        <div class="card-icon">📈</div>
+                        <div class="card-content">
+                            <div class="card-label">Highest Price</div>
+                            <div class="card-value">₹${highestPrice.toFixed(2)}</div>
+                            <div class="card-detail">+${(((highestPrice - trade.entry_price) / trade.entry_price) * 100).toFixed(2)}% from entry</div>
+                        </div>
+                    </div>
+                    
+                    <div class="trail-summary-card">
+                        <div class="card-icon">🛑</div>
+                        <div class="card-content">
+                            <div class="card-label">Stop Loss</div>
+                            <div class="card-value">₹${currentSL.toFixed(2)}</div>
+                            <div class="card-detail ${slChange >= 0 ? 'text-success' : 'text-danger'}">
+                                ${slChange >= 0 ? '+' : ''}₹${slChange.toFixed(2)} (${slChangePct.toFixed(2)}%)
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="trail-summary-card">
+                        <div class="card-icon">🔄</div>
+                        <div class="card-content">
+                            <div class="card-label">Updates</div>
+                            <div class="card-value">${updateCount}</div>
+                            <div class="card-detail">${updateCount === 0 ? 'No trails yet' : `Last: ${formatRelativeTime(lastUpdate)}`}</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <!-- Configuration -->
+                <div class="config-section">
+                    <h4>⚙️ Configuration</h4>
+                    <div class="config-grid">
+                        <div class="config-item">
+                            <span class="config-label">Type:</span>
+                            <span class="config-value">${trailingType.charAt(0).toUpperCase() + trailingType.slice(1)}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Distance:</span>
+                            <span class="config-value">${typeText}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Initial SL:</span>
+                            <span class="config-value">₹${initialSL.toFixed(2)}</span>
+                        </div>
+                        <div class="config-item">
+                            <span class="config-label">Last Check:</span>
+                            <span class="config-value">${lastCheck ? formatRelativeTime(lastCheck) : 'Never'}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <hr>
+                
+                <!-- Trail Log -->
+                <div class="trail-log-section">
+                    <h4>📜 Trail Log</h4>
+                    ${logHtml}
+                </div>
+                
+                <!-- Visual Progress -->
+                <div class="trail-visual">
+                    <h4>📊 Visual Progress</h4>
+                    <div class="price-chart">
+                        <div class="price-line" style="height: ${((highestPrice - trade.entry_price) / trade.entry_price) * 100 + 10}%">
+                            <div class="price-marker highest" style="top: 0;">
+                                <span>Highest: ₹${highestPrice.toFixed(2)}</span>
+                            </div>
+                            <div class="price-marker current-sl" style="top: ${((highestPrice - currentSL) / (highestPrice - trade.entry_price)) * 100}%;">
+                                <span>Current SL: ₹${currentSL.toFixed(2)}</span>
+                            </div>
+                            <div class="price-marker initial-sl" style="top: ${((highestPrice - initialSL) / (highestPrice - trade.entry_price)) * 100}%;">
+                                <span>Initial SL: ₹${initialSL.toFixed(2)}</span>
+                            </div>
+                            <div class="price-marker entry" style="top: 100%;">
+                                <span>Entry: ₹${trade.entry_price.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Close</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    // Force correct positioning (in case CSS doesn't load)
+    modal.style.cssText = `
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        background-color: rgba(0, 0, 0, 0.75) !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        z-index: 9999 !important;
+        padding: 20px;
+        overflow-y: auto;
+    `;
+}
+
+// Generate trail log HTML
+function generateTrailLogHTML(trade) {
+    const updateCount = trade.sl_updates_count || 0;
+    
+    if (updateCount === 0) {
+        return `
+            <div class="empty-log">
+                <p style="text-align: center; color: #888; padding: 20px;">
+                    No trail updates yet. The monitor runs hourly during market hours (9 AM - 3 PM).
+                </p>
+            </div>
+        `;
+    }
+    
+    // Since we don't store detailed history in the current implementation,
+    // we'll show a summary based on available data
+    const initialSL = trade.initial_sl || trade.stop_loss;
+    const currentSL = trade.stop_loss;
+    const lastUpdate = trade.last_sl_update;
+    
+    return `
+        <div class="log-timeline">
+            <div class="log-entry">
+                <div class="log-icon">🚀</div>
+                <div class="log-content">
+                    <div class="log-time">${trade.entry_date}</div>
+                    <div class="log-title">Trade Initiated</div>
+                    <div class="log-detail">Initial SL: ₹${initialSL.toFixed(2)}</div>
+                </div>
+            </div>
+            
+            ${updateCount > 0 ? `
+                <div class="log-entry success">
+                    <div class="log-icon">✅</div>
+                    <div class="log-content">
+                        <div class="log-time">${lastUpdate ? formatDateTime(lastUpdate) : 'Recently'}</div>
+                        <div class="log-title">SL Trailed ${updateCount} Time${updateCount > 1 ? 's' : ''}</div>
+                        <div class="log-detail">
+                            Current SL: ₹${currentSL.toFixed(2)} 
+                            <span class="text-success">(+₹${(currentSL - initialSL).toFixed(2)})</span>
+                        </div>
+                    </div>
+                </div>
+            ` : ''}
+            
+            <div class="log-entry pending">
+                <div class="log-icon">⏳</div>
+                <div class="log-content">
+                    <div class="log-time">Next Check</div>
+                    <div class="log-title">Hourly Monitor</div>
+                    <div class="log-detail">Runs every hour during market hours</div>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// Helper: Format relative time
+function formatRelativeTime(timestamp) {
+    if (!timestamp) return 'Never';
+    
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${diffDays}d ago`;
+}
+
+// Helper: Format date time
+function formatDateTime(timestamp) {
+    if (!timestamp) return '-';
+    const date = new Date(timestamp);
+    return date.toLocaleString('en-IN', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+async function clearAllTrades() {
+    if (!confirm('⚠️ WARNING: This will delete ALL trades permanently. Are you sure?')) return;
+    if (!confirm('This action cannot be undone. Proceed?')) return;
+    
+    try {
+        const response = await fetchWithAuth('/api/trades/clear-all', {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast('All trades cleared', 'success');
+            loadTrades();
+        } else {
+            showToast('Failed to clear trades', 'error');
+        }
+    } catch (error) {
+        showToast('Error clearing trades', 'error');
+    }
+}
+
+function formatDateTime(dateStr) {
+    if (!dateStr) return '-';
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-IN', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function formatExitReason(reason) {
+    const reasons = {
+        'target': '🎯 Target',
+        'stop_loss': '🛑 Stop Loss',
+        'supertrend_sell': '📉 ST Sell',
+        'manual': '👤 Manual',
+        'time_stop': '⏱️ Time Stop'
+    };
+    return reasons[reason] || reason;
+}
+</script>
+
+<style>
+/* TradingView Stock Link Styles */
+.stock-link-inline {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border-bottom: 1px dotted var(--primary-color);
+}
+
+.stock-link-inline:hover {
+    color: #60a5fa;
+    border-bottom: 1px solid #60a5fa;
+    text-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
+/* Trailing Status Cell */
+.trailing-status-cell {
+    text-align: center;
+}
+
+.btn-link {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+
+/* Trail History Modal Styles */
+.trail-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.trail-summary-card {
+    background: linear-gradient(135deg, #1a1f2e 0%, #252b3b 100%);
+    border-radius: 12px;
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: all 0.3s ease;
+}
+
+.trail-summary-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--primary-color);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+}
+
+.card-icon {
+    font-size: 32px;
+    line-height: 1;
+}
+
+.card-content {
+    flex: 1;
+}
+
+.card-label {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 5px;
+}
+
+.card-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--primary-color);
+    margin-bottom: 3px;
+}
+
+.card-detail {
+    font-size: 11px;
+    color: #aaa;
+}
+
+/* Configuration Section */
+.config-section {
+    background: #1a1f2e;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 15px 0;
+}
+
+.config-section h4 {
+    margin-bottom: 15px;
+    color: var(--primary-color);
+}
+
+.config-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.config-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+}
+
+.config-label {
+    color: #888;
+    font-size: 13px;
+}
+
+.config-value {
+    color: #fff;
+    font-weight: 500;
+    font-size: 13px;
+}
+
+/* Trail Log Section */
+.trail-log-section {
+    margin: 20px 0;
+}
+
+.trail-log-section h4 {
+    margin-bottom: 15px;
+    color: var(--primary-color);
+}
+
+.log-timeline {
+    position: relative;
+    padding-left: 50px;
+}
+
+.log-timeline::before {
+    content: '';
+    position: absolute;
+    left: 20px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--primary-color), transparent);
+}
+
+.log-entry {
+    position: relative;
+    margin-bottom: 25px;
+}
+
+.log-icon {
+    position: absolute;
+    left: -38px;
+    top: 0;
+    width: 36px;
+    height: 36px;
+    background: #1a1f2e;
+    border: 2px solid var(--primary-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    z-index: 1;
+}
+
+.log-entry.success .log-icon {
+    border-color: #10b981;
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.log-entry.pending .log-icon {
+    border-color: #888;
+    background: #252b3b;
+}
+
+.log-content {
+    background: #1a1f2e;
+    border-radius: 8px;
+    padding: 12px 15px;
+    border-left: 3px solid var(--primary-color);
+}
+
+.log-entry.success .log-content {
+    border-left-color: #10b981;
+}
+
+.log-entry.pending .log-content {
+    border-left-color: #888;
+}
+
+.log-time {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 5px;
+}
+
+.log-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 3px;
+}
+
+.log-detail {
+    font-size: 12px;
+    color: #aaa;
+}
+
+/* Visual Progress Chart */
+.trail-visual {
+    margin-top: 20px;
+}
+
+.trail-visual h4 {
+    margin-bottom: 15px;
+    color: var(--primary-color);
+}
+
+.price-chart {
+    background: #1a1f2e;
+    border-radius: 8px;
+    padding: 30px 20px;
+    position: relative;
+    min-height: 300px;
+}
+
+.price-line {
+    position: relative;
+    margin: 0 auto;
+    width: 4px;
+    background: linear-gradient(to top, var(--primary-color), #10b981);
+    min-height: 200px;
+}
+
+.price-marker {
+    position: absolute;
+    left: 20px;
+    white-space: nowrap;
+}
+
+.price-marker span {
+    background: #252b3b;
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    display: inline-block;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.price-marker.highest span {
+    color: #10b981;
+    border-color: #10b981;
+    font-weight: 600;
+}
+
+.price-marker.current-sl span {
+    color: #f59e0b;
+    border-color: #f59e0b;
+    font-weight: 600;
+}
+
+.price-marker.initial-sl span {
+    color: #ef4444;
+    border-color: #ef4444;
+}
+
+.price-marker.entry span {
+    color: var(--primary-color);
+    border-color: var(--primary-color);
+    font-weight: 600;
+}
+
+.empty-log {
+    background: #1a1f2e;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .trail-summary-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .config-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+

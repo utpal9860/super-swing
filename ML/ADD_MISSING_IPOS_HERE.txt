@@ -1,0 +1,21 @@
+# ADD MISSING IPO STOCKS HERE
+# One symbol per line
+# Current count: 199 stocks
+# Target: 300+ stocks (especially 2024 IPOs)
+#
+# Instructions:
+# 1. Add any missing stock symbols below (one per line)
+# 2. Save this file
+# 3. Run: python update_ipo_list.py
+#
+# Format: Just the NSE symbol, one per line
+# Example:
+# ZOMATO
+# NYKAA
+# PAYTM
+#
+# ============================================================================
+# ADD NEW STOCKS BELOW THIS LINE
+# ============================================================================
+
+

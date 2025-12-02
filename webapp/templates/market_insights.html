@@ -1,0 +1,345 @@
+{% extends "base.html" %}
+
+{% block title %}Market Insights - SuperTrend Trading{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="page-header">
+        <h2>📊 Market Insights</h2>
+        <p class="subtitle">Quick links to TradingView charts and market tools</p>
+    </div>
+
+    <!-- Quick Access to NSE Stocks -->
+    <div class="card">
+        <div class="card-header">
+            <h3>🚀 Quick Chart Access - NSE Stocks</h3>
+            <p style="color: #9ca3af; font-size: 14px; margin: 5px 0 0 0;">Click any stock to open full TradingView chart in new tab</p>
+        </div>
+        <div class="card-body">
+            <!-- Indices Section -->
+            <div style="margin-bottom: 30px;">
+                <h4 style="color: var(--text-primary); font-size: 16px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid var(--border-color); padding-bottom: 8px;">
+                    📈 Indian Indices
+                </h4>
+                <div class="stock-grid">
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3ANIFTY" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">📊</div>
+                            <div class="stock-name">Nifty 50</div>
+                            <div class="stock-symbol">NSE:NIFTY</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=BSE%3ASENSEX" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">📊</div>
+                            <div class="stock-name">Sensex</div>
+                            <div class="stock-symbol">BSE:SENSEX</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3ABANKNIFTY" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">🏦</div>
+                            <div class="stock-name">Bank Nifty</div>
+                            <div class="stock-symbol">NSE:BANKNIFTY</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3ANIFTYNEXT50" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">📊</div>
+                            <div class="stock-name">Nifty Next 50</div>
+                            <div class="stock-symbol">NSE:NIFTYNEXT50</div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Top NSE Stocks -->
+            <div style="margin-bottom: 30px;">
+                <h4 style="color: var(--text-primary); font-size: 16px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid var(--border-color); padding-bottom: 8px;">
+                    💎 Large Cap Stocks
+                </h4>
+                <div class="stock-grid">
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3ARELIANCE" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">🏭</div>
+                            <div class="stock-name">Reliance Industries</div>
+                            <div class="stock-symbol">NSE:RELIANCE</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3ATCS" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">💻</div>
+                            <div class="stock-name">TCS</div>
+                            <div class="stock-symbol">NSE:TCS</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3AHDFCBANK" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">🏦</div>
+                            <div class="stock-name">HDFC Bank</div>
+                            <div class="stock-symbol">NSE:HDFCBANK</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3AINFY" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">💻</div>
+                            <div class="stock-name">Infosys</div>
+                            <div class="stock-symbol">NSE:INFY</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3AITC" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">🏢</div>
+                            <div class="stock-name">ITC</div>
+                            <div class="stock-symbol">NSE:ITC</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3AICICIBANK" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">🏦</div>
+                            <div class="stock-name">ICICI Bank</div>
+                            <div class="stock-symbol">NSE:ICICIBANK</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3ASBIN" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">🏦</div>
+                            <div class="stock-name">State Bank of India</div>
+                            <div class="stock-symbol">NSE:SBIN</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3ABHARTIARTL" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">📱</div>
+                            <div class="stock-name">Bharti Airtel</div>
+                            <div class="stock-symbol">NSE:BHARTIARTL</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3AHINDUNILVR" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">🧴</div>
+                            <div class="stock-name">Hindustan Unilever</div>
+                            <div class="stock-symbol">NSE:HINDUNILVR</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3ABAJFINANCE" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">💰</div>
+                            <div class="stock-name">Bajaj Finance</div>
+                            <div class="stock-symbol">NSE:BAJFINANCE</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3AWIPRO" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">💻</div>
+                            <div class="stock-name">Wipro</div>
+                            <div class="stock-symbol">NSE:WIPRO</div>
+                        </div>
+                    </a>
+                    <a href="https://www.tradingview.com/chart/?symbol=NSE%3ATITAN" target="_blank" class="stock-link">
+                        <div class="stock-card">
+                            <div class="stock-icon">💎</div>
+                            <div class="stock-name">Titan Company</div>
+                            <div class="stock-symbol">NSE:TITAN</div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            <!-- Your Quality Watchlist -->
+            <div>
+                <h4 style="color: var(--text-primary); font-size: 16px; font-weight: 600; margin-bottom: 15px; border-bottom: 2px solid var(--border-color); padding-bottom: 8px;">
+                    ⭐ Your Quality Watchlist
+                </h4>
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <a href="/watchlist" class="btn btn-primary">
+                        📋 View Full Watchlist
+                    </a>
+                    <button onclick="openWatchlistCharts()" class="btn btn-secondary">
+                        📊 Open All Watchlist Charts
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Any Stock -->
+    <div class="card">
+        <div class="card-header">
+            <h3>🔎 Search Any NSE Stock</h3>
+            <p style="color: #9ca3af; font-size: 14px; margin: 5px 0 0 0;">Enter a stock symbol to open its TradingView chart</p>
+        </div>
+        <div class="card-body">
+            <div style="display: flex; gap: 10px; max-width: 600px;">
+                <input type="text" 
+                       id="custom-symbol-input" 
+                       placeholder="Enter symbol (e.g., ADANIENT, TATAMOTORS, MARUTI)" 
+                       style="flex: 1; padding: 12px 16px; border-radius: 8px; border: 2px solid var(--border-color); background: rgba(255,255,255,0.05); color: var(--text-primary); font-size: 16px;"
+                       onkeypress="if(event.key === 'Enter') openCustomChart()">
+                <button onclick="openCustomChart()" class="btn btn-primary" style="padding: 12px 24px;">
+                    📊 Open Chart
+                </button>
+            </div>
+            <p style="color: #9ca3af; font-size: 13px; margin-top: 10px;">
+                💡 Tip: Just type the symbol without .NS suffix (e.g., RELIANCE, not RELIANCE.NS)
+            </p>
+        </div>
+    </div>
+
+    <!-- Quick Links -->
+    <div class="card">
+        <div class="card-header">
+            <h3>🔗 Quick Links</h3>
+        </div>
+        <div class="card-body">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <a href="/scanner" class="btn btn-secondary" style="width: 100%;">
+                    🔍 Run Scanner
+                </a>
+                <a href="/watchlist" class="btn btn-secondary" style="width: 100%;">
+                    ⭐ View Watchlist
+                </a>
+                <a href="/trades" class="btn btn-secondary" style="width: 100%;">
+                    💼 Manage Trades
+                </a>
+                <a href="/analytics" class="btn btn-secondary" style="width: 100%;">
+                    📈 View Analytics
+                </a>
+                <a href="/eod-monitor" class="btn btn-secondary" style="width: 100%;">
+                    🔎 EOD Monitor
+                </a>
+                <a href="https://www.tradingview.com/" target="_blank" class="btn btn-secondary" style="width: 100%;">
+                    🌐 Open TradingView
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Stock Grid Styles */
+.stock-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 15px;
+}
+
+@media (max-width: 768px) {
+    .stock-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    }
+}
+
+.stock-link {
+    text-decoration: none;
+    display: block;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stock-link:hover {
+    transform: translateY(-4px);
+}
+
+.stock-card {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(16, 185, 129, 0.1) 100%);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.stock-card:hover {
+    border-color: var(--primary-color);
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.2) 0%, rgba(16, 185, 129, 0.2) 100%);
+    box-shadow: 0 8px 24px rgba(59, 130, 246, 0.3);
+}
+
+.stock-icon {
+    font-size: 32px;
+    margin-bottom: 10px;
+}
+
+.stock-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 5px;
+}
+
+.stock-symbol {
+    font-size: 12px;
+    color: var(--text-secondary);
+    font-family: 'Courier New', monospace;
+}
+</style>
+
+<script>
+// Authentication check
+const authToken = localStorage.getItem('auth_token');
+if (!authToken) {
+    window.location.href = '/login';
+}
+
+// Open custom chart from search input
+function openCustomChart() {
+    const symbolInput = document.getElementById('custom-symbol-input');
+    const symbol = symbolInput.value.trim().toUpperCase();
+    
+    if (!symbol) {
+        alert('Please enter a stock symbol');
+        return;
+    }
+    
+    // Remove .NS if user added it
+    const cleanSymbol = symbol.replace('.NS', '');
+    
+    // Open TradingView chart in new tab
+    const url = `https://www.tradingview.com/chart/?symbol=NSE%3A${cleanSymbol}`;
+    window.open(url, '_blank');
+    
+    // Clear input
+    symbolInput.value = '';
+}
+
+// Open all watchlist stocks in TradingView
+async function openWatchlistCharts() {
+    if (!confirm('This will open TradingView charts for all stocks in your quality watchlist. Continue?')) {
+        return;
+    }
+    
+    try {
+        // Fetch watchlist
+        const response = await fetch('/api/watchlist/current');
+        const data = await response.json();
+        
+        if (!data.stocks || data.stocks.length === 0) {
+            alert('No stocks in watchlist. Please generate the quality watchlist first.');
+            return;
+        }
+        
+        // Limit to first 10 to avoid opening too many tabs
+        const stocksToOpen = data.stocks.slice(0, 10);
+        
+        // Open each in new tab with delay to avoid popup blocker
+        stocksToOpen.forEach((stock, index) => {
+            setTimeout(() => {
+                const cleanSymbol = stock.symbol.replace('.NS', '');
+                const url = `https://www.tradingview.com/chart/?symbol=NSE%3A${cleanSymbol}`;
+                window.open(url, '_blank');
+            }, index * 500); // 500ms delay between each
+        });
+        
+        if (data.stocks.length > 10) {
+            alert(`Opened first 10 stocks. You have ${data.stocks.length} total in your watchlist.`);
+        }
+        
+    } catch (error) {
+        console.error('Error fetching watchlist:', error);
+        alert('Error loading watchlist. Please try again.');
+    }
+}
+</script>
+{% endblock %}
+

@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section">
+    <div class="hero-title">🚀 Multi-Modal Trading System</div>
+    <div class="hero-subtitle">AI-Powered Signal Generation for Indian Stock Markets</div>
+    <div class="mt-3">
+        <span class="feature-badge"><i class="bi bi-graph-up"></i> Pattern Detection</span>
+        <span class="feature-badge"><i class="bi bi-newspaper"></i> Sentiment Analysis</span>
+        <span class="feature-badge"><i class="bi bi-currency-rupee"></i> Price Prediction</span>
+    </div>
+</div>
+
+<!-- Main Content -->
+<div class="main-container">
+    <div class="row">
+        <!-- Info Column -->
+        <div class="col-md-6">
+            <h3 class="mb-4"><i class="bi bi-info-circle"></i> How It Works</h3>
+            
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-1-circle-fill text-primary"></i> Pattern Detection</h5>
+                    <p class="card-text">Scans charts for 60+ candlestick patterns using TA-Lib</p>
+                </div>
+            </div>
+            
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-2-circle-fill text-success"></i> Sentiment Analysis</h5>
+                    <p class="card-text">Analyzes real-time news using Gemini + Google Search</p>
+                </div>
+            </div>
+            
+            <div class="card mb-3">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-3-circle-fill text-info"></i> Price Prediction</h5>
+                    <p class="card-text">Forecasts next 10 days using StatsForecast</p>
+                </div>
+            </div>
+            
+            <div class="alert alert-info">
+                <i class="bi bi-lightbulb"></i> <strong>Multi-Modal Fusion:</strong> Only generates signals when all three models agree!
+            </div>
+            
+            <h5 class="mt-4">Expected Performance</h5>
+            <ul>
+                <li><strong>Win Rate:</strong> 62-68% (vs 52-55% single model)</li>
+                <li><strong>Average Gain:</strong> 4-6% per trade</li>
+                <li><strong>Holding Period:</strong> 5-15 days</li>
+                <li><strong>Cost:</strong> $0/month 🎉</li>
+            </ul>
+        </div>
+        
+        <!-- Scan Form Column -->
+        <div class="col-md-6">
+            <h3 class="mb-4"><i class="bi bi-search"></i> Start Scanning</h3>
+            
+            <form id="scanForm">
+                <div class="mb-4">
+                    <label for="universe" class="form-label fw-bold">Select Stock Universe</label>
+                    <select class="form-select form-select-lg" id="universe" name="universe" required onchange="toggleCustomList()">
+                        <optgroup label="Quick Test">
+                            <option value="test">Test (3 stocks) ⚡</option>
+                        </optgroup>
+                        <optgroup label="Large Cap (Safe, Lower Movement)">
+                            <option value="large_cap">Large Cap (20 stocks) 🏛️</option>
+                            <option value="fno_top10">F&O Top 10 🎯</option>
+                            <option value="fno_top20">F&O Top 20 🚀</option>
+                        </optgroup>
+                        <optgroup label="Mid & Small Cap (Higher Movement)">
+                            <option value="mid_cap" selected>Mid Cap (45 stocks) 📈</option>
+                            <option value="small_cap">Small Cap (30 stocks) 🚀</option>
+                            <option value="mid_and_small">Mid + Small (75 stocks) 🔥</option>
+                        </optgroup>
+                        <optgroup label="Sector Focused">
+                            <option value="auto_mid_small">Auto Sector 🚗</option>
+                            <option value="pharma_mid_small">Pharma Sector 💊</option>
+                            <option value="it_mid_small">IT Sector 💻</option>
+                        </optgroup>
+                        <optgroup label="Custom">
+                            <option value="custom">🎯 Custom Stock List (Your Watchlist)</option>
+                        </optgroup>
+                    </select>
+                    <div class="form-text" id="universeDescription">
+                        Mid/Small caps offer higher movement potential for swing trading
+                    </div>
+                </div>
+                
+                <!-- Custom Stock List Input (Hidden by default) -->
+                <div class="mb-4" id="customListSection" style="display: none;">
+                    <label for="customStocks" class="form-label fw-bold">Enter Your Stock List</label>
+                    <textarea class="form-control" id="customStocks" name="custom_stocks" rows="4" 
+                              placeholder="Enter stock symbols, one per line or comma-separated:&#10;RELIANCE&#10;TCS&#10;INFY&#10;or: RELIANCE, TCS, INFY"></textarea>
+                    <div class="form-text">
+                        <strong>Examples:</strong> RELIANCE, TCS, INFY, HDFCBANK<br>
+                        <strong>Note:</strong> Use NSE symbols without .NS suffix
+                    </div>
+                </div>
+                
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Advanced Options</label>
+                    
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="enable_multitimeframe" name="enable_multitimeframe" value="true">
+                        <label class="form-check-label" for="enable_multitimeframe">
+                            <strong>🎯 Multi-Timeframe Analysis (1W, 1D, 4H, 1H)</strong>
+                        </label>
+                        <div class="form-text">
+                            <strong>Recommended!</strong> Scans patterns across weekly, daily, 4-hour, and hourly timeframes for better entries.
+                            <br><span class="text-warning">⚠️ Takes 2-3x longer but provides much better signals!</span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="skip_sentiment" name="skip_sentiment" value="true">
+                        <label class="form-check-label" for="skip_sentiment">
+                            <strong>Skip Sentiment Analysis</strong> (Faster, No Gemini API needed)
+                        </label>
+                        <div class="form-text">Enable this if you don't have Gemini API key or want faster results</div>
+                    </div>
+                    
+                    <div class="mb-2">
+                        <label for="max_patterns" class="form-label">Max Patterns per Stock:</label>
+                        <select class="form-select" id="max_patterns" name="max_patterns">
+                            <option value="1">1 pattern (Fastest)</option>
+                            <option value="3" selected>3 patterns (Balanced)</option>
+                            <option value="5">5 patterns (More signals)</option>
+                            <option value="10">10 patterns (Maximum coverage)</option>
+                        </select>
+                        <div class="form-text">Higher values give more signals but take longer</div>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info" id="geminiWarning">
+                    <i class="bi bi-info-circle"></i> <strong>Tip:</strong> Enable "Skip Sentiment" for faster results without Gemini API!
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button type="submit" class="btn btn-scan btn-lg">
+                        <span class="btn-text"><i class="bi bi-play-circle"></i> Generate Signals</span>
+                        <div class="spinner-border spinner-border-sm loading-spinner ms-2" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </button>
+                </div>
+            </form>
+            
+            <!-- Progress Section -->
+            <div id="progressSection" class="mt-4" style="display: none;">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="bi bi-hourglass-split"></i> Scanning in Progress...</h5>
+                        <div class="progress mt-3" style="height: 25px;">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" style="width: 100%">
+                                Analyzing stocks...
+                            </div>
+                        </div>
+                        <p class="mt-3 mb-0 text-muted">
+                            <small>
+                                <i class="bi bi-info-circle"></i> This may take a few minutes. We're analyzing patterns, fetching news, and predicting prices...
+                            </small>
+                        </p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Statistics -->
+            <div class="row mt-4">
+                <div class="col-6">
+                    <div class="stats-card">
+                        <div class="stats-number">0</div>
+                        <div class="stats-label">Stocks Scanned</div>
+                    </div>
+                </div>
+                <div class="col-6">
+                    <div class="stats-card">
+                        <div class="stats-number" id="signalsCount">?</div>
+                        <div class="stats-label">Signals Found</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Features Section -->
+<div class="main-container">
+    <h3 class="mb-4 text-center"><i class="bi bi-trophy"></i> Why Multi-Modal?</h3>
+    
+    <div class="row text-center">
+        <div class="col-md-4 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <i class="bi bi-shield-check text-success" style="font-size: 3rem;"></i>
+                    <h5 class="card-title mt-3">Higher Accuracy</h5>
+                    <p class="card-text">62-68% win rate when all models agree vs 52-55% for single model</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <i class="bi bi-currency-dollar text-success" style="font-size: 3rem;"></i>
+                    <h5 class="card-title mt-3">100% FREE</h5>
+                    <p class="card-text">No monthly costs. Uses free tools and Gemini API (1,500 requests/day)</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 mb-3">
+            <div class="card h-100">
+                <div class="card-body">
+                    <i class="bi bi-clock-history text-primary" style="font-size: 3rem;"></i>
+                    <h5 class="card-title mt-3">Real-Time Data</h5>
+                    <p class="card-text">Gemini fetches latest news via Google Search for up-to-date analysis</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Toggle custom stock list visibility
+    function toggleCustomList() {
+        const universe = document.getElementById('universe').value;
+        const customSection = document.getElementById('customListSection');
+        const customTextarea = document.getElementById('customStocks');
+        
+        if (universe === 'custom') {
+            customSection.style.display = 'block';
+            customTextarea.required = true;
+        } else {
+            customSection.style.display = 'none';
+            customTextarea.required = false;
+        }
+    }
+</script>
+<script>
+document.getElementById('scanForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const form = e.target;
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const btnText = submitBtn.querySelector('.btn-text');
+    const spinner = submitBtn.querySelector('.loading-spinner');
+    const progressSection = document.getElementById('progressSection');
+    
+    // Show loading state
+    submitBtn.disabled = true;
+    spinner.classList.add('active');
+    btnText.innerHTML = '<i class="bi bi-hourglass-split"></i> Scanning...';
+    progressSection.style.display = 'block';
+    
+    try {
+        // Get form data
+        const formData = new FormData(form);
+        
+        // Submit scan request
+        const response = await fetch('/scan', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Update stats
+            document.getElementById('signalsCount').textContent = result.num_signals;
+            
+            // Redirect to results
+            window.location.href = result.redirect;
+        } else {
+            // Show error
+            alert('Error: ' + result.error);
+            
+            // Reset button
+            submitBtn.disabled = false;
+            spinner.classList.remove('active');
+            btnText.innerHTML = '<i class="bi bi-play-circle"></i> Generate Signals';
+            progressSection.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Scan error:', error);
+        alert('An error occurred. Please check the console and try again.');
+        
+        // Reset button
+        submitBtn.disabled = false;
+        spinner.classList.remove('active');
+        btnText.innerHTML = '<i class="bi bi-play-circle"></i> Generate Signals';
+        progressSection.style.display = 'none';
+    }
+});
+</script>
+{% endblock %}
+

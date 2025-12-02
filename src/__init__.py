@@ -1,0 +1,2 @@
+# SuperTrend Scanner Package
+

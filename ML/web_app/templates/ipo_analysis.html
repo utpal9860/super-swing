@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}IPO Buy-and-Hold Analysis{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <h2 class="mb-4">
+        <i class="bi bi-graph-up-arrow"></i> IPO Buy-and-Hold Analysis
+    </h2>
+    
+    <div class="alert alert-info">
+        <h5><i class="bi bi-info-circle"></i> About This Analysis</h5>
+        <p class="mb-0">
+            This tool analyzes returns from buying stocks at their IPO/listing price and holding them till today.
+            It calculates XIRR (time-weighted returns) and CAGR to show you the power of buy-and-hold investing.
+        </p>
+        <ul class="mt-2 mb-0">
+            <li><strong>Investment per Stock:</strong> Specify how much you would have invested in each stock (default Rs.15,000)</li>
+            <li><strong>CAGR:</strong> Compound Annual Growth Rate - annualized return percentage</li>
+            <li><strong>XIRR:</strong> Extended Internal Rate of Return - considers exact investment dates</li>
+            <li><strong>Portfolio View:</strong> See combined performance across all stocks</li>
+        </ul>
+    </div>
+    
+    <!-- Analysis Form -->
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title"><i class="bi bi-gear"></i> Analysis Parameters</h5>
+            
+            <form id="ipoAnalysisForm">
+                <div class="row g-3">
+                    <!-- Investment Amount -->
+                    <div class="col-md-6">
+                        <label for="investmentAmount" class="form-label">
+                            <strong>Investment per Stock (Rs.):</strong>
+                        </label>
+                        <input type="number" class="form-control" id="investmentAmount" 
+                               name="investment_amount" value="15000" min="1000" step="1000" required>
+                        <small class="text-muted">Amount you would have invested in each stock at IPO</small>
+                    </div>
+                    
+                    <!-- Stock List Type -->
+                    <div class="col-md-6">
+                        <label for="stockList" class="form-label">
+                            <strong>Stock List:</strong>
+                        </label>
+                        <select class="form-select" id="stockList" name="stock_list" required>
+                            <option value="sample" selected>ALL IPOs 2019-2025 (Auto-fetch from NSE)</option>
+                            <option value="custom">Custom Stock List</option>
+                        </select>
+                        <small class="text-muted">Auto-fetches ALL stocks listed in last 6 years</small>
+                    </div>
+                    
+                    <!-- Custom Stock List (hidden by default) -->
+                    <div class="col-12" id="customStocksDiv" style="display: none;">
+                        <label for="customStocks" class="form-label">
+                            <strong>Enter Stock Symbols (comma or newline separated):</strong>
+                        </label>
+                        <textarea class="form-control" id="customStocks" name="custom_stocks" 
+                                  rows="4" placeholder="INFY, TCS, RELIANCE&#10;HDFCBANK&#10;ICICIBANK"></textarea>
+                        <small class="text-muted">Enter stock symbols (without .NS suffix)</small>
+                    </div>
+                    
+                    <!-- Analyze Button -->
+                    <div class="col-12 text-center">
+                        <button type="submit" class="btn btn-primary btn-lg" id="analyzeBtn">
+                            <i class="bi bi-calculator"></i> <span id="analyzeBtnText">Analyze IPO Returns</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+            
+            <!-- Progress -->
+            <div id="progressDiv" style="display: none;" class="mt-4">
+                <div class="alert alert-info">
+                    <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                    <strong id="progressText">Analyzing IPO returns...</strong>
+                </div>
+            </div>
+            
+            <!-- Error -->
+            <div id="errorDiv" style="display: none;" class="mt-4">
+                <div class="alert alert-danger">
+                    <strong>Error:</strong> <span id="errorText"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Info -->
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5 class="card-title"><i class="bi bi-info-circle"></i> How It Works</h5>
+            <p class="mb-2">Automatically fetches ALL stocks from NSE and filters for those listed between 2019-2025. For each stock:</p>
+            <ul class="mb-0">
+                <li>Fetches listing date and price</li>
+                <li>Simulates buying Rs.15,000 worth at listing</li>
+                <li>Calculates current value and returns (CAGR, XIRR)</li>
+                <li>Shows portfolio-level performance</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Toggle custom stock list
+    document.getElementById('stockList').addEventListener('change', function() {
+        const customDiv = document.getElementById('customStocksDiv');
+        if (this.value === 'custom') {
+            customDiv.style.display = 'block';
+        } else {
+            customDiv.style.display = 'none';
+        }
+    });
+    
+    // Handle form submission
+    document.getElementById('ipoAnalysisForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Show progress
+        document.getElementById('progressDiv').style.display = 'block';
+        document.getElementById('errorDiv').style.display = 'none';
+        document.getElementById('analyzeBtn').disabled = true;
+        document.getElementById('analyzeBtnText').textContent = 'Analyzing...';
+        
+        // Submit form
+        const formData = new FormData(this);
+        
+        fetch('/ipo-analysis/analyze', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Redirect to results
+                window.location.href = data.redirect;
+            } else {
+                // Show error
+                document.getElementById('errorText').textContent = data.error;
+                document.getElementById('errorDiv').style.display = 'block';
+                document.getElementById('progressDiv').style.display = 'none';
+                document.getElementById('analyzeBtn').disabled = false;
+                document.getElementById('analyzeBtnText').textContent = 'Analyze IPO Returns';
+            }
+        })
+        .catch(error => {
+            document.getElementById('errorText').textContent = 'Network error: ' + error;
+            document.getElementById('errorDiv').style.display = 'block';
+            document.getElementById('progressDiv').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = false;
+            document.getElementById('analyzeBtnText').textContent = 'Analyze IPO Returns';
+        });
+    });
+</script>
+{% endblock %}
+

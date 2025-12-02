@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block title %}IPO Analysis Results{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <h2 class="mb-4">
+        <i class="bi bi-graph-up-arrow"></i> IPO Buy-and-Hold Analysis Results
+    </h2>
+    
+    {% if no_results %}
+    <!-- No Results -->
+    <div class="alert alert-warning">
+        <h4><i class="bi bi-info-circle"></i> No Results Available</h4>
+        <p class="mb-0">
+            No analysis results found. Please run an analysis first.
+        </p>
+    </div>
+    
+    <div class="text-center mt-4">
+        <a href="/ipo-analysis" class="btn btn-primary btn-lg">
+            <i class="bi bi-arrow-left"></i> Run IPO Analysis
+        </a>
+    </div>
+    
+    {% else %}
+    
+    <!-- Portfolio Summary -->
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <div class="card-body">
+                    <h4 class="mb-3"><i class="bi bi-briefcase"></i> Portfolio Summary</h4>
+                    <div class="row">
+                        <div class="col-md-3 text-center border-end">
+                            <div class="display-6">{{ summary.num_stocks }}</div>
+                            <div>Stocks Analyzed</div>
+                        </div>
+                        <div class="col-md-3 text-center border-end">
+                            <div class="display-6">Rs.{{ "{:,.0f}".format(summary.total_invested) }}</div>
+                            <div>Total Invested</div>
+                        </div>
+                        <div class="col-md-3 text-center border-end">
+                            <div class="display-6">Rs.{{ "{:,.0f}".format(summary.total_current_value) }}</div>
+                            <div>Current Value</div>
+                        </div>
+                        <div class="col-md-3 text-center">
+                            <div class="display-6">{{ "%.1f"|format(summary.total_return_pct) }}%</div>
+                            <div>Total Return</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Key Metrics -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="stats-card" style="background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);">
+                <div class="stats-number">{{ "%.1f"|format(summary.portfolio_cagr) }}%</div>
+                <div class="stats-label">Portfolio CAGR</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card" style="background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);">
+                <div class="stats-number">{{ "%.1f"|format(summary.portfolio_xirr) if summary.portfolio_xirr else 'N/A' }}%</div>
+                <div class="stats-label">Portfolio XIRR</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card" style="background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);">
+                <div class="stats-number">{{ "%.1f"|format(summary.win_rate) }}%</div>
+                <div class="stats-label">Win Rate</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="stats-card" style="background: linear-gradient(135deg, #9C27B0 0%, #7B1FA2 100%);">
+                <div class="stats-number">{{ "%.1f"|format(summary.avg_years_held) }} yrs</div>
+                <div class="stats-label">Avg Holding Period</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Profit/Loss Stats -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-success mb-2">
+                        <i class="bi bi-arrow-up-circle"></i> Best Performer
+                    </h6>
+                    <p class="mb-0">
+                        <strong>{{ summary.best_stock }}</strong>: 
+                        <span class="text-success">{{ "%.1f"|format(summary.best_return) }}% CAGR</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="text-danger mb-2">
+                        <i class="bi bi-arrow-down-circle"></i> Worst Performer
+                    </h6>
+                    <p class="mb-0">
+                        <strong>{{ summary.worst_stock }}</strong>: 
+                        <span class="text-danger">{{ "%.1f"|format(summary.worst_return) }}% CAGR</span>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="text-center mb-4">
+        <a href="/ipo-analysis" class="btn btn-outline-primary">
+            <i class="bi bi-arrow-left"></i> New Analysis
+        </a>
+        <a href="/ipo-analysis/export-csv" class="btn btn-success">
+            <i class="bi bi-download"></i> Export CSV
+        </a>
+        <button class="btn btn-outline-success" onclick="window.print()">
+            <i class="bi bi-printer"></i> Print Report
+        </button>
+    </div>
+    
+    <!-- Charts -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h4><i class="bi bi-bar-chart-line"></i> Visual Analysis</h4>
+        </div>
+    </div>
+    
+    <!-- Portfolio Growth Chart -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    {{ charts.portfolio_growth | safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Returns Bar Chart and Profit/Loss Pie -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    {{ charts.returns_bar | safe }}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body">
+                    {{ charts.profit_loss_pie | safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Returns Distribution and Timeline -->
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    {{ charts.returns_dist | safe }}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    {{ charts.timeline_gantt | safe }}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Detailed Results Table -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-table"></i> Detailed Stock-wise Results</h5>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>#</th>
+                                    <th>Stock</th>
+                                    <th>Company</th>
+                                    <th>Listing Date</th>
+                                    <th class="text-end">Listing Price</th>
+                                    <th class="text-end">Current Price</th>
+                                    <th class="text-end">Invested</th>
+                                    <th class="text-end">Current Value</th>
+                                    <th class="text-end">Return %</th>
+                                    <th class="text-end">CAGR %</th>
+                                    <th class="text-end">XIRR %</th>
+                                    <th class="text-center">Years</th>
+                                    <th class="text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stock in results %}
+                                <tr>
+                                    <td>{{ loop.index }}</td>
+                                    <td><strong>{{ stock.ticker }}</strong></td>
+                                    <td>{{ stock.company_name[:30] }}</td>
+                                    <td>{{ stock.listing_date }}</td>
+                                    <td class="text-end">Rs.{{ "%.2f"|format(stock.listing_price) }}</td>
+                                    <td class="text-end">Rs.{{ "%.2f"|format(stock.current_price) }}</td>
+                                    <td class="text-end">Rs.{{ "{:,.0f}".format(stock.invested_amount) }}</td>
+                                    <td class="text-end">Rs.{{ "{:,.0f}".format(stock.current_value) }}</td>
+                                    <td class="text-end {{ 'text-success' if stock.return_pct > 0 else 'text-danger' }}">
+                                        <strong>{{ "%.1f"|format(stock.return_pct) }}%</strong>
+                                    </td>
+                                    <td class="text-end {{ 'text-success' if stock.cagr > 0 else 'text-danger' }}">
+                                        <strong>{{ "%.1f"|format(stock.cagr) }}%</strong>
+                                    </td>
+                                    <td class="text-end">
+                                        {{ "%.1f"|format(stock.xirr) if stock.xirr else 'N/A' }}%
+                                    </td>
+                                    <td class="text-center">{{ "%.1f"|format(stock.years_held) }}</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-{{ 'success' if stock.status == 'PROFIT' else 'danger' }}">
+                                            {{ stock.status }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Key Insights -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-lightbulb"></i> Key Insights</h5>
+                    <ul class="mb-0">
+                        <li>
+                            <strong>Buy-and-Hold Strategy:</strong> Investing Rs.{{ "{:,.0f}".format(summary.total_invested) }} 
+                            across {{ summary.num_stocks }} stocks has grown to Rs.{{ "{:,.0f}".format(summary.total_current_value) }}, 
+                            a return of <span class="{{ 'text-success' if summary.total_return > 0 else 'text-danger' }}">
+                            {{ "%.1f"|format(summary.total_return_pct) }}%</span>.
+                        </li>
+                        <li>
+                            <strong>Win Rate:</strong> {{ summary.num_profitable }} out of {{ summary.num_stocks }} stocks 
+                            ({{ "%.1f"|format(summary.win_rate) }}%) are currently profitable.
+                        </li>
+                        <li>
+                            <strong>Annualized Returns:</strong> Your portfolio CAGR of 
+                            <span class="{{ 'text-success' if summary.portfolio_cagr > 0 else 'text-danger' }}">
+                            {{ "%.1f"|format(summary.portfolio_cagr) }}%</span> 
+                            means your money has been growing at this rate annually.
+                        </li>
+                        <li>
+                            <strong>Time in Market:</strong> Average holding period of {{ "%.1f"|format(summary.avg_years_held) }} years 
+                            demonstrates the power of long-term investing.
+                        </li>
+                        {% if summary.portfolio_cagr > 12 %}
+                        <li class="text-success">
+                            <i class="bi bi-trophy"></i> <strong>Excellent Performance!</strong> Your portfolio CAGR of 
+                            {{ "%.1f"|format(summary.portfolio_cagr) }}% significantly beats typical market returns (10-12% CAGR).
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+    @media print {
+        .btn, footer, nav { display: none !important; }
+        .card { page-break-inside: avoid; }
+    }
+</style>
+{% endblock %}
+
