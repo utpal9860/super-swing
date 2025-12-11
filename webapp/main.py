@@ -17,12 +17,16 @@ from fastapi.templating import Jinja2Templates
 from pathlib import Path
 import sys
 import logging
+import os
 from typing import Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from webapp.api import paper_trading, scanner, watchlist, analytics, eod_monitor, auth_api, zerodha_api, orders_api, backtest, ai
+from webapp.api import order_monitor
+from webapp.api import trailing_sl_worker
+from webapp.api import sl_placement_worker
 from webapp.database import init_db
 
 # Setup logging
@@ -31,6 +35,14 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Check if JWT_SECRET_KEY is set (warn if not)
+if not os.getenv("JWT_SECRET_KEY"):
+    logger.warning(
+        "⚠️  JWT_SECRET_KEY not set in environment! "
+        "Users will be logged out on server restart. "
+        "Set JWT_SECRET_KEY in .env file for persistent authentication."
+    )
 
 # Initialize FastAPI app
 app = FastAPI(
@@ -51,12 +63,36 @@ async def startup_event():
     """Initialize database on startup"""
     init_db()
     logger.info("✅ Database initialized")
+    
+    # Start order monitor worker
+    try:
+        order_monitor.start_order_monitor()
+        logger.info("✅ Order Monitor Worker started")
+    except Exception as e:
+        logger.warning(f"Could not start order monitor: {e}")
+    
+    # Start trailing stop loss worker
+    try:
+        trailing_sl_worker.start_trailing_sl_worker()
+        logger.info("✅ Trailing Stop Loss Worker started")
+    except Exception as e:
+        logger.warning(f"Could not start trailing SL worker: {e}")
+    
+    # Start SL placement worker
+    try:
+        sl_placement_worker.start_sl_placement_worker()
+        logger.info("✅ SL Placement Worker started")
+    except Exception as e:
+        logger.warning(f"Could not start SL placement worker: {e}")
 
 # Include API routers
 # Authentication & User Management
 app.include_router(auth_api.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(zerodha_api.router, prefix="/api/zerodha", tags=["Zerodha Integration"])
 app.include_router(orders_api.router, prefix="/api/orders", tags=["Live Orders"])
+app.include_router(order_monitor.router, prefix="/api/order-monitor", tags=["Order Monitor"])
+app.include_router(trailing_sl_worker.router, prefix="/api/trailing-sl", tags=["Trailing Stop Loss"])
+app.include_router(sl_placement_worker.router, prefix="/api/sl-placement", tags=["SL Placement"])
 
 # Trading Features
 app.include_router(paper_trading.router, prefix="/api/trades", tags=["Paper Trading"])

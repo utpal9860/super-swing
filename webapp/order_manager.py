@@ -2,12 +2,15 @@
 Order Management Module
 Handles order validation, placement, and tracking with risk management
 """
-from typing import Dict, Optional, Tuple, Any
+from typing import Dict, Optional, Tuple, Any, List
 from datetime import datetime
 import logging
 from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+# BSE index symbols (for BFO exchange)
+BSE_INDICES = {'SENSEX', 'BANKEX', 'SENSEX50'}
 
 
 class OrderType(str, Enum):
@@ -38,6 +41,283 @@ class ProductType(str, Enum):
     CNC = "CNC"  # Cash and Carry (delivery)
     MIS = "MIS"  # Margin Intraday Square off
     NRML = "NRML"  # Normal (carry forward)
+
+
+def is_option_symbol(symbol: str) -> bool:
+    """
+    Check if symbol is an option (ends with CE/PE)
+    
+    Args:
+        symbol: Trading symbol
+        
+    Returns:
+        True if option, False otherwise
+    """
+    symbol_upper = symbol.upper().replace(".NS", "").strip()
+    return symbol_upper.endswith("CE") or symbol_upper.endswith("PE")
+
+
+def get_option_exchange(symbol: str) -> str:
+    """
+    Get correct exchange for option (NFO/BFO)
+    
+    Args:
+        symbol: Option symbol (e.g., "SENSEX11DEC84500CE")
+        
+    Returns:
+        "BFO" for BSE indices, "NFO" for NSE indices/stocks
+    """
+    symbol_upper = symbol.upper().replace(".NS", "")
+    
+    # Check if it's a BSE index option
+    for bse_index in BSE_INDICES:
+        if symbol_upper.startswith(bse_index):
+            return "BFO"
+    
+    # Default to NFO for NSE options
+    return "NFO"
+
+
+def get_stock_exchange(symbol: str, default_exchange: str = "NSE") -> str:
+    """
+    Get exchange for stock (NSE/BSE)
+    
+    Args:
+        symbol: Stock symbol
+        default_exchange: Default exchange if not specified
+        
+    Returns:
+        Exchange name (NSE or BSE)
+    """
+    # For now, use default or check symbol prefix
+    # Can be enhanced to check actual exchange from instrument list
+    return default_exchange.upper()
+
+
+def get_product_type_for_option() -> str:
+    """
+    Get product type for options (NRML for delivery)
+    
+    Returns:
+        "NRML" - Normal product allows holding until expiry
+    """
+    return "NRML"
+
+
+def get_product_type_for_stock() -> str:
+    """
+    Get product type for stocks (CNC for delivery)
+    
+    Returns:
+        "CNC" - Cash and Carry for delivery
+    """
+    return "CNC"
+
+
+def calculate_option_quantity(shares: int, lot_size: int) -> int:
+    """
+    Calculate order quantity for options (in lots)
+    
+    Args:
+        shares: Number of shares/lots from trade
+        lot_size: Lot size for the option
+        
+    Returns:
+        Total quantity (shares × lot_size)
+    """
+    return shares * lot_size
+
+
+def calculate_price_movement_pct(signal_price: float, current_price: float) -> float:
+    """
+    Calculate price movement percentage
+    
+    Args:
+        signal_price: Original signal/requested price
+        current_price: Current market price
+        
+    Returns:
+        Price movement percentage (positive = moved up, negative = moved down)
+    """
+    if signal_price == 0:
+        return 0.0
+    return ((current_price - signal_price) / signal_price) * 100
+
+
+def determine_order_strategy(
+    signal_price: float,
+    current_price: float,
+    order_type: str = "LIMIT",
+    price_tolerance_pct: float = 2.0,
+    max_price_movement_pct: float = 5.0,
+    target_price: Optional[float] = None,
+    today_high: Optional[float] = None
+) -> Dict[str, Any]:
+    """
+    Determine optimal order strategy based on price movement
+    
+    Pro Trader Strategy:
+    - If price moved <2%: Use original price (LIMIT) - wait for pullback
+    - If price moved 2-5%: Use adaptive price (LIMIT at midpoint or current)
+    - If price moved >5%: Reject order (too risky)
+    - If price already moved favorably (towards target) then came back: Reject (momentum lost)
+    
+    Args:
+        signal_price: Original signal/requested price
+        current_price: Current market price
+        order_type: Requested order type
+        price_tolerance_pct: Acceptable price movement (default 2%)
+        max_price_movement_pct: Maximum acceptable movement (default 5%)
+        target_price: Target price (to detect if price already moved favorably)
+        today_high: Today's high price (to detect if price already moved up significantly)
+        
+    Returns:
+        Dict with:
+        - final_order_type: MARKET or LIMIT
+        - final_price: Price to use (None for MARKET)
+        - price_movement_pct: How much price moved
+        - strategy: Strategy used
+        - warning: Warning message if any
+        - should_reject: True if order should be rejected
+    """
+    price_movement_pct = calculate_price_movement_pct(signal_price, current_price)
+    abs_movement = abs(price_movement_pct)
+    
+    result = {
+        "price_movement_pct": price_movement_pct,
+        "signal_price": signal_price,
+        "current_price": current_price,
+        "should_reject": False,
+        "warning": None,
+        "strategy": None
+    }
+    
+    # CRITICAL: Check if price already moved favorably (towards target) then came back
+    # This prevents entering on falling price after momentum is lost
+    if target_price and today_high:
+        # Calculate how much price moved towards target from entry
+        target_movement_pct = calculate_price_movement_pct(signal_price, target_price)
+        high_movement_pct = calculate_price_movement_pct(signal_price, today_high)
+        
+        # If price moved significantly towards target (e.g., >30% of target movement)
+        # and now it's back near entry, reject (momentum is lost)
+        if target_movement_pct > 0:  # Target is above entry (BUY scenario)
+            # If price reached >30% of the way to target, then came back
+            favorable_movement_threshold = target_movement_pct * 0.3  # 30% of target movement
+            
+            if high_movement_pct > favorable_movement_threshold:
+                # Price already moved favorably, check if it came back
+                current_movement_from_high = calculate_price_movement_pct(today_high, current_price)
+                
+                # If price is now back near entry (within 2% of entry) after moving up
+                if abs(price_movement_pct) < 2.0 and current_movement_from_high < -3.0:
+                    result["should_reject"] = True
+                    result["final_order_type"] = order_type
+                    result["final_price"] = signal_price
+                    result["strategy"] = "reject_momentum_lost"
+                    result["warning"] = (
+                        f"Price already moved up {high_movement_pct:+.2f}% (reached ₹{today_high:.2f}) "
+                        f"towards target ₹{target_price:.2f}, but now back to ₹{current_price:.2f} "
+                        f"(near entry ₹{signal_price:.2f}). Momentum lost - order rejected to prevent "
+                        f"entering on falling price."
+                    )
+                    return result
+    
+    # Price moved too much - reject order
+    if abs_movement > max_price_movement_pct:
+        result["should_reject"] = True
+        result["final_order_type"] = order_type
+        result["final_price"] = signal_price
+        result["strategy"] = "reject_high_movement"
+        result["warning"] = (
+            f"Price moved {price_movement_pct:+.2f}% (signal: ₹{signal_price:.2f}, "
+            f"current: ₹{current_price:.2f}). "
+            f"Movement exceeds maximum tolerance ({max_price_movement_pct}%). "
+            f"Order rejected to prevent high-risk entry."
+        )
+        return result
+    
+    # Price moved moderately (2-5%) - use adaptive strategy
+    if abs_movement > price_tolerance_pct:
+        # Use midpoint between signal and current (compromise)
+        midpoint_price = (signal_price + current_price) / 2
+        
+        # For BUY: If price moved up, use midpoint. If moved down, use current (better price)
+        if price_movement_pct > 0:  # Price moved up
+            final_price = midpoint_price
+            strategy = "adaptive_midpoint"
+            warning = (
+                f"Price moved up {price_movement_pct:+.2f}% (signal: ₹{signal_price:.2f}, "
+                f"current: ₹{current_price:.2f}). "
+                f"Using adaptive LIMIT at ₹{final_price:.2f} (midpoint) to balance entry and risk."
+            )
+        else:  # Price moved down (better for BUY)
+            final_price = current_price  # Use current (better price)
+            strategy = "adaptive_current"
+            warning = (
+                f"Price moved down {abs_movement:.2f}% (signal: ₹{signal_price:.2f}, "
+                f"current: ₹{current_price:.2f}). "
+                f"Using LIMIT at current price ₹{final_price:.2f} (better entry)."
+            )
+        
+        result["final_order_type"] = "LIMIT"
+        result["final_price"] = final_price
+        result["strategy"] = strategy
+        result["warning"] = warning
+        return result
+    
+    # Price moved minimally (<2%) - use original price (wait for pullback)
+    result["final_order_type"] = "LIMIT"
+    result["final_price"] = signal_price
+    result["strategy"] = "original_price"
+    if abs_movement > 0.1:  # Only warn if there's meaningful movement
+        result["warning"] = (
+            f"Price moved {price_movement_pct:+.2f}% (signal: ₹{signal_price:.2f}, "
+            f"current: ₹{current_price:.2f}). "
+            f"Using original LIMIT price ₹{signal_price:.2f} (waiting for pullback)."
+        )
+    
+    return result
+
+
+def extract_underlying_from_option_symbol(option_symbol: str) -> Optional[str]:
+    """
+    Extract underlying symbol from option symbol
+    
+    Args:
+        option_symbol: Option symbol (e.g., "SENSEX11DEC84500CE", "PRESTIGE25DEC1680CE")
+        
+    Returns:
+        Underlying symbol (e.g., "SENSEX", "PRESTIGE") or None if not found
+    """
+    import re
+    
+    symbol_upper = option_symbol.upper().replace(".NS", "").strip()
+    
+    # Check BSE indices first (longer names)
+    for bse_index in sorted(BSE_INDICES, key=len, reverse=True):
+        if symbol_upper.startswith(bse_index):
+            return bse_index
+    
+    # Check NSE indices
+    nse_indices = ['NIFTYNXT50', 'MIDCPNIFTY', 'FINNIFTY', 'BANKNIFTY', 'NIFTY']
+    for nse_index in sorted(nse_indices, key=len, reverse=True):
+        if symbol_upper.startswith(nse_index):
+            return nse_index
+    
+    # For stock options, extract by removing date/strike/type patterns
+    # Pattern: STOCKNAME + (YY|DD) + MON + STRIKE + (CE|PE)
+    # Try to match stock name (letters only, before date pattern)
+    match = re.match(r'^([A-Z]+?)(?:\d{2}[A-Z]{3}\d+[CP]E)', symbol_upper)
+    if match:
+        return match.group(1)
+    
+    # Fallback: try to extract just the letters before first digit
+    match = re.match(r'^([A-Z]+)', symbol_upper)
+    if match:
+        return match.group(1)
+    
+    return None
 
 
 class OrderValidator:
@@ -245,42 +525,77 @@ class OrderManager:
     def prepare_order_params(
         self,
         symbol: str,
-        exchange: str,
-        transaction_type: str,
-        quantity: int,
-        order_type: str,
+        exchange: Optional[str] = None,
+        transaction_type: str = "BUY",
+        quantity: int = 1,
+        order_type: str = "MARKET",
         price: Optional[float] = None,
         trigger_price: Optional[float] = None,
-        product: str = "CNC",
-        validity: str = "DAY"
+        product: Optional[str] = None,
+        validity: str = "DAY",
+        is_option: Optional[bool] = None,
+        lot_size: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         Prepare order parameters for Zerodha API
         
+        Automatically detects if symbol is an option and sets correct exchange/product.
+        
         Args:
-            symbol: Trading symbol
-            exchange: Exchange (NSE/BSE)
+            symbol: Trading symbol (e.g., "RELIANCE" or "SENSEX11DEC84500CE")
+            exchange: Exchange (NSE/BSE/NFO/BFO) - auto-detected if None
             transaction_type: BUY or SELL
-            quantity: Order quantity
+            quantity: Order quantity (for stocks) or shares (for options)
             order_type: Order type
             price: Price for limit orders
             trigger_price: Trigger price for SL orders
-            product: Product type
+            product: Product type (CNC/NRML) - auto-selected if None
             validity: Order validity
+            is_option: Whether symbol is an option (auto-detected if None)
+            lot_size: Lot size for options (required if is_option=True)
             
         Returns:
-            Dict of order parameters
+            Dict of order parameters ready for Zerodha API
         """
         # Clean symbol (remove .NS suffix)
         clean_symbol = symbol.replace(".NS", "").strip().upper()
         
+        # Auto-detect if option
+        if is_option is None:
+            is_option = is_option_symbol(clean_symbol)
+        
+        # Set exchange
+        if exchange is None:
+            if is_option:
+                exchange = get_option_exchange(clean_symbol)
+            else:
+                exchange = get_stock_exchange(clean_symbol)
+        else:
+            exchange = exchange.upper()
+        
+        # Set product type
+        if product is None:
+            if is_option:
+                product = get_product_type_for_option()
+            else:
+                product = get_product_type_for_stock()
+        else:
+            product = product.upper()
+        
+        # Calculate quantity for options
+        if is_option and lot_size:
+            final_quantity = calculate_option_quantity(quantity, lot_size)
+            logger.info(f"Option quantity: {quantity} lots × {lot_size} = {final_quantity} contracts")
+        else:
+            final_quantity = quantity
+        
         params = {
             "symbol": clean_symbol,
-            "exchange": exchange.upper(),
+            "exchange": exchange,
             "transaction_type": transaction_type.upper(),
-            "quantity": quantity,
+            "quantity": final_quantity,
             "order_type": order_type.upper(),
-            "product": product.upper(),
+            "product": product,
             "validity": validity.upper()
         }
         
@@ -289,6 +604,9 @@ class OrderManager:
         
         if trigger_price is not None:
             params["trigger_price"] = trigger_price
+        
+        logger.info(f"Prepared order params: symbol={clean_symbol}, exchange={exchange}, "
+                   f"product={product}, quantity={final_quantity}, is_option={is_option}")
         
         return params
     

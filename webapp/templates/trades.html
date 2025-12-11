@@ -131,7 +131,16 @@ async function fetchWithAuth(url, options = {}) {
         ...options.headers,
         'Authorization': `Bearer ${authToken}`
     };
-    return fetch(url, options);
+    const response = await fetch(url, options);
+    
+    // Handle 401 Unauthorized - redirect to login
+    if (response.status === 401) {
+        localStorage.removeItem('auth_token');
+        window.location.href = '/login';
+        throw new Error('Unauthorized - please login again');
+    }
+    
+    return response;
 }
 
 let currentTab = 'all';
@@ -164,14 +173,23 @@ async function updateTradeStatistics() {
         const summary = await response.json();
         
         if (summary.success) {
-            document.getElementById('trades-net-pnl').textContent = `₹${summary.net_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-            document.getElementById('trades-total').textContent = summary.total_trades;
-            document.getElementById('trades-open').textContent = summary.open_trades;
-            document.getElementById('trades-closed').textContent = summary.closed_trades;
-            document.getElementById('trades-win-rate').textContent = `${summary.win_rate}%`;
-            document.getElementById('trades-winners').textContent = summary.winning_trades;
-            document.getElementById('trades-losers').textContent = summary.losing_trades;
-            document.getElementById('trades-expectancy').textContent = `₹${summary.expectancy.toLocaleString('en-IN')}`;
+            const netPnl = Number(summary?.net_pnl ?? 0);
+            const total = Number(summary?.total_trades ?? 0);
+            const open = Number(summary?.open_trades ?? 0);
+            const closed = Number(summary?.closed_trades ?? 0);
+            const winRate = Number(summary?.win_rate ?? 0);
+            const winners = Number(summary?.winning_trades ?? 0);
+            const losers = Number(summary?.losing_trades ?? 0);
+            const expectancy = Number(summary?.expectancy ?? 0);
+
+            document.getElementById('trades-net-pnl').textContent = `₹${netPnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+            document.getElementById('trades-total').textContent = total;
+            document.getElementById('trades-open').textContent = open;
+            document.getElementById('trades-closed').textContent = closed;
+            document.getElementById('trades-win-rate').textContent = `${winRate}%`;
+            document.getElementById('trades-winners').textContent = winners;
+            document.getElementById('trades-losers').textContent = losers;
+            document.getElementById('trades-expectancy').textContent = `₹${expectancy.toLocaleString('en-IN')}`;
         }
     } catch (error) {
         console.error('Error updating statistics:', error);

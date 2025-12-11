@@ -402,7 +402,16 @@ async function fetchWithAuth(url, options = {}) {
         ...options.headers,
         'Authorization': `Bearer ${authToken}`
     };
-    return fetch(url, options);
+    const response = await fetch(url, options);
+    
+    // Handle 401 Unauthorized - redirect to login
+    if (response.status === 401) {
+        localStorage.removeItem('auth_token');
+        window.location.href = '/login';
+        throw new Error('Unauthorized - please login again');
+    }
+    
+    return response;
 }
 
 let eodCheckData = null;
@@ -411,6 +420,12 @@ let eodCheckData = null;
 window.addEventListener('DOMContentLoaded', () => {
     loadCachedEodData();
 });
+
+// Safe number formatter for possibly-null values
+function fmtNum(v, d = 2) {
+    if (v === null || v === undefined || Number.isNaN(Number(v))) return '-';
+    try { return Number(v).toFixed(d); } catch { return '-'; }
+}
 
 function loadCachedEodData() {
     const cachedData = localStorage.getItem('eod_check_data');
@@ -484,6 +499,12 @@ async function runEodCheck() {
 }
 
 function displayEodResults(data) {
+    // Log debug info to console
+    if (data.debug_logs && data.debug_logs.length > 0) {
+        console.log('=== EOD Debug Logs ===');
+        data.debug_logs.forEach(log => console.log(log));
+        console.log('======================');
+    }
     const summaryCards = document.getElementById('summary-cards');
     const tradesToCloseSection = document.getElementById('trades-to-close-section');
     const openTradesSection = document.getElementById('open-trades-section');
@@ -591,25 +612,25 @@ function renderTradesToClose(trades) {
         card.className = `trade-card ${statusClass}`;
         card.innerHTML = `
             <div class="trade-header">
-                <div class="trade-symbol">${statusIcon} <a href="${tvLink}" target="_blank" class="stock-link-inline" title="View ${trade.symbol} on TradingView">${trade.symbol}</a></div>
+                <div class="trade-symbol">${statusIcon} <a href="${tvLink}" target="_blank" class="stock-link-inline" title="View ${trade.symbol} on TradingView">${trade.option_symbol || trade.symbol}</a></div>
                 <div class="trade-status status-${statusClass.replace('-hit', '').replace('-stop', '')}">${statusText}</div>
             </div>
             <div class="trade-details">
                 <div class="detail-item">
                     <div class="detail-label">Entry Price</div>
-                    <div class="detail-value">₹${trade.entry_price.toFixed(2)}</div>
+                    <div class="detail-value">₹${fmtNum(trade.entry_price)}</div>
                 </div>
                 <div class="detail-item">
                     <div class="detail-label">Exit Price</div>
-                    <div class="detail-value">₹${status.exit_price.toFixed(2)}</div>
+                    <div class="detail-value">₹${fmtNum(status.exit_price)}</div>
                 </div>
                 <div class="detail-item">
-                    <div class="detail-label">Today's Range</div>
-                    <div class="detail-value">₹${ohlc.low.toFixed(2)} - ₹${ohlc.high.toFixed(2)}</div>
+                    <div class="detail-label">Range Since Entry</div>
+                    <div class="detail-value">₹${fmtNum(ohlc.low)} - ₹${fmtNum(ohlc.high)}</div>
                 </div>
                 <div class="detail-item">
                     <div class="detail-label">P&L</div>
-                    <div class="detail-value ${pnlClass}">₹${pnlSign}${status.net_pnl.toFixed(2)} (${pnlSign}${status.pnl_pct.toFixed(1)}%)</div>
+                    <div class="detail-value ${pnlClass}">₹${pnlSign}${fmtNum(status.net_pnl)} (${pnlSign}${fmtNum(status.pnl_pct, 1)}%)</div>
                 </div>
             </div>
             <div class="trade-actions">
@@ -617,11 +638,7 @@ function renderTradesToClose(trades) {
                     💹 Close in Webapp
                 </button>
                 <a href="/trades" class="btn btn-secondary btn-sm">View All Trades</a>
-            </div>
-            <div class="mini-chart-card">
-                <h4>Price Movement (3 Months)</h4>
-                <div id="mini-chart-close-${trade.id}" style="height: 220px;"></div>
-            </div>
+            </div>            
         `;
         container.appendChild(card);
         
@@ -681,33 +698,37 @@ function renderOpenTrades(trades) {
         card.className = 'trade-card open';
         card.innerHTML = `
             <div class="trade-header">
-                <div class="trade-symbol">✅ <a href="${tvLink}" target="_blank" class="stock-link-inline" title="View ${trade.symbol} on TradingView">${trade.symbol}</a></div>
+                <div class="trade-symbol">✅ <a href="${tvLink}" target="_blank" class="stock-link-inline" title="View ${trade.symbol} on TradingView">${trade.option_symbol || trade.symbol}</a></div>
                 <div class="trade-status status-open">Still Open</div>
             </div>
             <div class="trade-details">
                 <div class="detail-item">
                     <div class="detail-label">Entry Price</div>
-                    <div class="detail-value">₹${trade.entry_price.toFixed(2)}</div>
+                    <div class="detail-value">₹${fmtNum(trade.entry_price)}</div>
                 </div>
                 <div class="detail-item">
                     <div class="detail-label">Current Price</div>
-                    <div class="detail-value">₹${status.current_price.toFixed(2)}</div>
+                    <div class="detail-value">₹${fmtNum(status.current_price)}</div>
                 </div>
                 <div class="detail-item">
-                    <div class="detail-label">Today's Range</div>
-                    <div class="detail-value">₹${ohlc.low.toFixed(2)} - ₹${ohlc.high.toFixed(2)}</div>
+                    <div class="detail-label">High Since Entry</div>
+                    <div class="detail-value">₹${fmtNum(status.max_high || ohlc.high)}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Range Since Entry</div>
+                    <div class="detail-value">₹${fmtNum(ohlc.low)} - ₹${fmtNum(ohlc.high)}</div>
                 </div>
                 <div class="detail-item">
                     <div class="detail-label">Unrealized P&L</div>
-                    <div class="detail-value ${pnlClass}">₹${pnlSign}${status.unrealized_pnl.toFixed(2)} (${pnlSign}${status.pnl_pct.toFixed(1)}%)</div>
+                    <div class="detail-value ${pnlClass}">₹${pnlSign}${fmtNum(status.unrealized_pnl)} (${pnlSign}${fmtNum(status.pnl_pct, 1)}%)</div>
                 </div>
                 <div class="detail-item">
                     <div class="detail-label">Stop Loss</div>
-                    <div class="detail-value">₹${trade.stop_loss.toFixed(2)}</div>
+                    <div class="detail-value">₹${fmtNum(trade.stop_loss)}</div>
                 </div>
                 <div class="detail-item">
                     <div class="detail-label">Target</div>
-                    <div class="detail-value">₹${trade.target.toFixed(2)}</div>
+                    <div class="detail-value">₹${fmtNum(trade.target)}</div>
                 </div>
                 <div class="detail-item">
                     <div class="detail-label">Days Held</div>
@@ -718,8 +739,8 @@ function renderOpenTrades(trades) {
             ${healthWarningsHTML}
             ${healthInfo && (healthInfo.status === 'CRITICAL' || healthInfo.status === 'WARNING') ? `
                 <div class="trade-actions">
-                    <button class="btn-early-exit" onclick="earlyExit('${trade.id}', '${trade.symbol}', ${status.current_price})">
-                        🚨 Early Exit at ₹${status.current_price.toFixed(2)}
+                    <button class="btn-early-exit" onclick="earlyExit('${trade.id}', '${trade.symbol}', ${status.current_price || trade.entry_price})">
+                        🚨 Early Exit at ₹${fmtNum(status.current_price || trade.entry_price)}
                     </button>
                     <button class="btn-view-chart" onclick="window.open('${tvLink}', '_blank')">
                         📊 View Chart
@@ -753,7 +774,7 @@ function renderHealthWarnings(trades) {
         card.className = `trade-card ${healthClass.replace('health-', '')}`;
         card.innerHTML = `
             <div class="trade-header">
-                <div class="trade-symbol">${healthIcon} <a href="${tvLink}" target="_blank" class="stock-link-inline">${trade.symbol}</a></div>
+                <div class="trade-symbol">${healthIcon} <a href="${tvLink}" target="_blank" class="stock-link-inline">${trade.option_symbol || trade.symbol}</a></div>
                 <div class="health-badge ${healthClass}">
                     ${healthIcon} Health: ${healthInfo.health_score}/10 - ${healthInfo.status}
                 </div>
@@ -761,15 +782,19 @@ function renderHealthWarnings(trades) {
             <div class="trade-details">
                 <div class="detail-item">
                     <div class="detail-label">Entry Price</div>
-                    <div class="detail-value">₹${trade.entry_price.toFixed(2)}</div>
+                    <div class="detail-value">₹${fmtNum(trade.entry_price)}</div>
                 </div>
                 <div class="detail-item">
                     <div class="detail-label">Current Price</div>
-                    <div class="detail-value">₹${status.current_price.toFixed(2)}</div>
+                    <div class="detail-value">₹${fmtNum(status.current_price)}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">High Since Entry</div>
+                    <div class="detail-value">₹${fmtNum(status.max_high || status.current_price)}</div>
                 </div>
                 <div class="detail-item">
                     <div class="detail-label">Current P&L</div>
-                    <div class="detail-value ${pnlClass}">₹${pnlSign}${status.unrealized_pnl.toFixed(2)} (${pnlSign}${status.pnl_pct.toFixed(1)}%)</div>
+                    <div class="detail-value ${pnlClass}">₹${pnlSign}${fmtNum(status.unrealized_pnl)} (${pnlSign}${fmtNum(status.pnl_pct, 1)}%)</div>
                 </div>
                 <div class="detail-item">
                     <div class="detail-label">Days Held</div>
@@ -786,7 +811,7 @@ function renderHealthWarnings(trades) {
             </div>
             <div class="trade-actions">
                 <button class="btn-early-exit" onclick="earlyExit('${trade.id}', '${trade.symbol}', ${status.current_price})">
-                    🚨 Early Exit at ₹${status.current_price.toFixed(2)}
+                    🚨 Early Exit at ₹${fmtNum(status.current_price || trade.entry_price)}
                 </button>
                 <button class="btn-view-chart" onclick="window.open('${tvLink}', '_blank')">
                     📊 View Chart
@@ -798,19 +823,25 @@ function renderHealthWarnings(trades) {
 }
 
 async function earlyExit(tradeId, symbol, currentPrice) {
-    if (!confirm(`⚠️ Early Exit: ${symbol}\n\nExit at current price: ₹${currentPrice.toFixed(2)}\n\nThis will close the trade before SL/Target is hit.\n\nContinue?`)) {
+    const price = currentPrice || 0;
+    if (!confirm(`⚠️ Early Exit: ${symbol}\n\nExit at current price: ₹${fmtNum(price)}\n\nThis will close the trade before SL/Target is hit.\n\nContinue?`)) {
         return;
     }
     
     try {
-        const response = await fetch(`/api/trades/close/${tradeId}?exit_price=${currentPrice}&exit_reason=early_exit&notes=Early exit due to health warning`, {
+        const response = await fetchWithAuth(`/api/trades/close/${tradeId}?exit_price=${price}&exit_reason=early_exit&notes=Early exit due to health warning`, {
             method: 'PUT'
         });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+            throw new Error(errorData.detail || `HTTP ${response.status}`);
+        }
         
         const data = await response.json();
         
         if (data.success) {
-            showToast(`✅ ${symbol} closed early at ₹${currentPrice.toFixed(2)}`, 'success');
+            showToast(`✅ ${symbol} closed early at ₹${fmtNum(price)}`, 'success');
             // Refresh EOD check
             setTimeout(() => runEodCheck(), 1000);
         } else {
@@ -828,9 +859,14 @@ async function closeTradeInWebapp(tradeId, exitPrice, exitReason) {
     }
     
     try {
-        const response = await fetch(`/api/trades/close/${tradeId}?exit_price=${exitPrice}&exit_reason=${exitReason}&notes=Closed via EOD Monitor`, {
+        const response = await fetchWithAuth(`/api/trades/close/${tradeId}?exit_price=${exitPrice}&exit_reason=${exitReason}&notes=Closed via EOD Monitor`, {
             method: 'PUT'
         });
+        
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: `HTTP ${response.status}` }));
+            throw new Error(errorData.detail || `HTTP ${response.status}`);
+        }
         
         const data = await response.json();
         

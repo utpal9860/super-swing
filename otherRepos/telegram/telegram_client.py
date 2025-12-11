@@ -71,26 +71,84 @@ class TelegramChannelClient:
         if not channel_name:
             channel_name = config.CHANNEL_NAME
         
+        # If a numeric ID like -100xxxxxxxxxxxx is provided, resolve via dialogs
+        chan_str = str(channel_name)
+        if chan_str.startswith("-100") and chan_str[4:].isdigit():
+            try:
+                desired = chan_str
+                async for dialog in self.client.iter_dialogs():
+                    if dialog.is_channel and isinstance(dialog.entity, Channel):
+                        entity = dialog.entity
+                        entity_id_str = f"-100{abs(entity.id)}"
+                        if entity_id_str == desired:
+                            self.channel = entity
+                            print(f"✅ Channel found by ID: {self.channel.title}")
+                            print(f"   Username: @{self.channel.username if self.channel.username else 'N/A'}")
+                            print(f"   ID: {entity_id_str}")
+                            print(f"   Members: {getattr(self.channel, 'participants_count', 'N/A')}")
+                            return self.channel
+                print(f"❌ Channel with ID {desired} not found in your dialogs")
+            except Exception as e:
+                print(f"❌ Error resolving channel by ID: {e}")
+                # Fall through to name/username resolution
+        
+        # Fallback: try resolving by username/title
         try:
             self.channel = await self.client.get_entity(channel_name)
-            
             if isinstance(self.channel, Channel):
                 print(f"✅ Channel found: {self.channel.title}")
                 print(f"   Username: @{self.channel.username if self.channel.username else 'N/A'}")
-                print(f"   ID: {self.channel.id}")
+                print(f"   ID: -100{abs(self.channel.id)}")
                 print(f"   Members: {getattr(self.channel, 'participants_count', 'N/A')}")
                 return self.channel
             else:
                 print("❌ Entity found but it's not a channel")
                 return None
-                
         except Exception as e:
             print(f"❌ Error accessing channel: {e}")
             print("\n💡 Troubleshooting:")
             print("   1. Make sure you're a member of the channel")
             print("   2. Try using the channel username (e.g., '@channelname')")
-            print("   3. Check if the channel name is spelled correctly")
+            print("   3. Check if the channel name or ID is correct")
             return None
+
+    async def get_channels(self, channel_names):
+        """Resolve multiple channels into entities"""
+        resolved = []
+        missing = []
+        # Build a map of dialog id strings for faster lookup
+        dialog_map = {}
+        async for dialog in self.client.iter_dialogs():
+            if dialog.is_channel and isinstance(dialog.entity, Channel):
+                entity = dialog.entity
+                dialog_map[f"-100{abs(entity.id)}"] = entity
+                if entity.username:
+                    dialog_map[f"@{entity.username}"] = entity
+                    dialog_map[entity.username] = entity
+                dialog_map[entity.title] = entity
+        for name in channel_names:
+            s = str(name)
+            entity = None
+            # Try direct map first
+            if s in dialog_map:
+                entity = dialog_map[s]
+            elif s.startswith("-100") and s[4:].isdigit():
+                entity = dialog_map.get(s)
+            # Fallback: query get_entity
+            if not entity:
+                try:
+                    entity = await self.client.get_entity(s)
+                except Exception:
+                    entity = None
+            if entity and isinstance(entity, Channel):
+                resolved.append(entity)
+                uname = f"@{entity.username}" if entity.username else "N/A"
+                print(f"✅ Channel: {entity.title} ({uname}) ID=-100{abs(entity.id)}")
+            else:
+                missing.append(s)
+        if missing:
+            print(f"⚠️ Could not resolve channels: {', '.join(missing)}")
+        return resolved
     
     async def list_all_channels(self):
         """List all channels user is subscribed to"""

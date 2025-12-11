@@ -30,7 +30,15 @@ class MessageHandler:
             'links': [],
             'views': message.views if hasattr(message, 'views') else None,
             'forwards': message.forwards if hasattr(message, 'forwards') else None,
+            'is_reply': False,
+            'reply_to_msg_id': None,
         }
+        
+        # Extract reply information
+        if hasattr(message, 'reply_to') and message.reply_to:
+            message_data['is_reply'] = True
+            if hasattr(message.reply_to, 'reply_to_msg_id'):
+                message_data['reply_to_msg_id'] = message.reply_to.reply_to_msg_id
         
         # Check for media
         if message.media:

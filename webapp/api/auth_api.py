@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime
+import os
 
 from webapp.database import get_db, User, FeatureFlags
 from webapp.auth import (
@@ -19,7 +20,8 @@ from webapp.auth import (
 )
 
 router = APIRouter()
-security = HTTPBearer()
+# Make bearer optional so we can bypass auth locally when enabled
+security = HTTPBearer(auto_error=False)
 
 
 # Request/Response Models
@@ -63,8 +65,9 @@ class UserProfileResponse(BaseModel):
 
 # Dependency to get current user from token
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    db: Session = Depends(get_db)
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db),
+    request: Request = None
 ) -> User:
     """
     Get current authenticated user from JWT token
@@ -79,6 +82,80 @@ async def get_current_user(
     Raises:
         HTTPException: If token is invalid or user not found
     """
+    # Local bypass: if BYPASS_AUTH=true, return/create a local user without token
+    bypass = os.environ.get("BYPASS_AUTH", "").lower() in ("1", "true", "yes")
+    if bypass and not credentials:
+        user = db.query(User).filter(User.username == "local").first()
+        if not user:
+            # Create a minimal local user
+            user = User(
+                id=generate_user_id(),
+                username="local",
+                email="local@example.com",
+                password_hash="",
+                full_name="Local User",
+                is_active=True,
+                is_admin=False
+            )
+            db.add(user)
+            # Ensure default feature flags exist
+            if not db.query(FeatureFlags).filter(FeatureFlags.user_id == user.id).first():
+                flags = FeatureFlags(
+                    user_id=user.id,
+                    live_trading_enabled=False,
+                    auto_order_placement=False,
+                    max_order_value=100000.0,
+                    max_daily_orders=10,
+                    max_open_positions=5,
+                    risk_per_trade_pct=2.0
+                )
+                db.add(flags)
+            db.commit()
+            db.refresh(user)
+        return user
+
+    # Static API key support (Authorization: Bearer <key> OR X-API-Key: <key>)
+    service_api_key = os.environ.get("SERVICE_API_KEY") or os.environ.get("API_KEY")
+    header_api_key = None
+    try:
+        header_api_key = request.headers.get("x-api-key") if request else None
+    except Exception:
+        header_api_key = None
+    bearer_value = credentials.credentials if credentials else None
+    if service_api_key and (header_api_key == service_api_key or bearer_value == service_api_key):
+        user = db.query(User).filter(User.username == "service").first()
+        if not user:
+            user = User(
+                id=generate_user_id(),
+                username="service",
+                email="service@example.com",
+                password_hash="",
+                full_name="Service API User",
+                is_active=True,
+                is_admin=False
+            )
+            db.add(user)
+            if not db.query(FeatureFlags).filter(FeatureFlags.user_id == user.id).first():
+                flags = FeatureFlags(
+                    user_id=user.id,
+                    live_trading_enabled=False,
+                    auto_order_placement=False,
+                    max_order_value=100000.0,
+                    max_daily_orders=10,
+                    max_open_positions=5,
+                    risk_per_trade_pct=2.0
+                )
+                db.add(flags)
+            db.commit()
+            db.refresh(user)
+        return user
+
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     token = credentials.credentials
     payload = decode_access_token(token)
     

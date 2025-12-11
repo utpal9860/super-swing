@@ -1,0 +1,15 @@
+message_id,channel_name,channel_id,timestamp,date,text,media_type,links,views,forwards,is_reply,reply_to_msg_id,posted_at,received_at,lag_seconds,signal,option_ltp,expiry_resolved,webapp_post_status
+184702,BANKNIFTY NIFTY INTRADAY STOCK OPTIONS,-1001615795252,2025-12-10 09:27:54,2025-12-10 03:57:03,"**BUY ADANIENSOL 990 CE ABOVE 30
+
+TARGET :- 34 / 40
+
+SL :- PAID
+
+DECEMBER EXPIRY**",,[],1,0,False,,2025-12-10T03:57:03+00:00,2025-12-10T03:57:54.574713+00:00,51.574713,"{'action': 'BUY', 'symbol': 'ADANIENSOL', 'strike': 990.0, 'option_type': 'CE', 'trigger_type': 'ABOVE', 'trigger_price': 30.0, 'targets': [34.0, 40.0], 'stop_loss': 'PAID', 'expiry_month': 'DECEMBER'}",,,200
+184703,BANKNIFTY NIFTY INTRADAY STOCK OPTIONS,-1001615795252,2025-12-10 09:28:54,2025-12-10 03:58:10,"**BUY SENSEX 84500 CE ABOVE 470
+
+TARGET :- 520 / 620
+
+SL :- PAID
+
+11 DECEMBER**",,[],1,0,False,,2025-12-10T03:58:10+00:00,2025-12-10T03:58:54.685883+00:00,44.685883,"{'action': 'BUY', 'symbol': 'SENSEX', 'strike': 84500.0, 'option_type': 'CE', 'trigger_type': 'ABOVE', 'trigger_price': 470.0, 'targets': [520.0, 620.0], 'stop_loss': 'PAID', 'expiry_month': None}",,,200

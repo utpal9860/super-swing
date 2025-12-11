@@ -463,7 +463,16 @@ async function fetchWithAuth(url, options = {}) {
         ...options.headers,
         'Authorization': `Bearer ${authToken}`
     };
-    return fetch(url, options);
+    const response = await fetch(url, options);
+    
+    // Handle 401 Unauthorized - redirect to login
+    if (response.status === 401) {
+        localStorage.removeItem('auth_token');
+        window.location.href = '/login';
+        throw new Error('Unauthorized - please login again');
+    }
+    
+    return response;
 }
 
 let scannerInterval = null;

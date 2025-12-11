@@ -95,42 +95,73 @@ class ZerodhaClient:
         trigger_price: Optional[float] = None,
         product: str = "CNC",
         validity: str = "DAY",
-        variety: str = "regular"
+        variety: str = "regular",
+        squareoff: Optional[float] = None,
+        stoploss: Optional[float] = None,
+        trailing_stoploss: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Place an order on Zerodha
         
         Args:
             symbol: Trading symbol (e.g., "RELIANCE")
-            exchange: Exchange (NSE/BSE)
+            exchange: Exchange (NSE/BSE/NFO/BFO)
             transaction_type: BUY or SELL
-            quantity: Number of shares
+            quantity: Number of shares/contracts
             order_type: MARKET, LIMIT, SL, SL-M
-            price: Price for limit orders
+            price: Price for limit orders (can be above/below market for breakout)
             trigger_price: Trigger price for SL orders
             product: CNC/MIS/NRML
             validity: DAY/IOC
-            variety: regular/amo/co/iceberg
+            variety: regular/amo/co/bo/iceberg
+                - "regular": Regular order
+                - "bo": Bracket order (entry + SL + target - fire and forget)
+                - "co": Cover order (entry + SL)
+            squareoff: Target price (for bracket orders)
+            stoploss: Stop loss price (for bracket/cover orders)
+            trailing_stoploss: Trailing stop loss value (for bracket orders)
             
         Returns:
             Order response dict with order_id
         """
         try:
-            order_id = self.kite.place_order(
-                variety=variety,
-                exchange=exchange,
-                tradingsymbol=symbol,
-                transaction_type=transaction_type,
-                quantity=quantity,
-                product=product,
-                order_type=order_type,
-                price=price,
-                trigger_price=trigger_price,
-                validity=validity
-            )
+            # Prepare order parameters
+            order_params = {
+                "variety": variety,
+                "exchange": exchange,
+                "tradingsymbol": symbol,
+                "transaction_type": transaction_type,
+                "quantity": quantity,
+                "product": product,
+                "order_type": order_type,
+                "validity": validity
+            }
             
-            logger.info(f"Order placed successfully: {order_id}")
-            return {"order_id": order_id, "status": "success"}
+            # Add optional parameters
+            if price is not None:
+                order_params["price"] = price
+            
+            if trigger_price is not None:
+                order_params["trigger_price"] = trigger_price
+            
+            # Bracket order specific parameters
+            if variety == "bo":
+                if squareoff is not None:
+                    order_params["squareoff"] = squareoff
+                if stoploss is not None:
+                    order_params["stoploss"] = stoploss
+                if trailing_stoploss is not None:
+                    order_params["trailing_stoploss"] = trailing_stoploss
+            
+            # Cover order specific parameters
+            if variety == "co":
+                if stoploss is not None:
+                    order_params["stoploss"] = stoploss
+            
+            order_id = self.kite.place_order(**order_params)
+            
+            logger.info(f"Order placed successfully: {order_id} (variety: {variety})")
+            return {"order_id": order_id, "status": "success", "variety": variety}
         except Exception as e:
             logger.error(f"Order placement failed: {e}")
             raise
@@ -345,7 +376,7 @@ class ZerodhaClient:
         Get list of all tradeable instruments
         
         Args:
-            exchange: Optional exchange filter (NSE/BSE/NFO/etc.)
+            exchange: Optional exchange filter (NSE/BSE/NFO/BFO/etc.)
             
         Returns:
             List of instrument details
@@ -357,6 +388,86 @@ class ZerodhaClient:
         except Exception as e:
             logger.error(f"Failed to fetch instruments: {e}")
             raise
+    
+    def resolve_option_symbol(
+        self,
+        symbol: str,
+        strike: float,
+        option_type: str,
+        expiry_date_str: str
+    ) -> Optional[str]:
+        """
+        Resolve option symbol to Zerodha's exact trading symbol
+        
+        This matches our constructed symbol (e.g., "SENSEX11DEC84500CE") to
+        Zerodha's actual trading symbol format.
+        
+        Args:
+            symbol: Underlying symbol (e.g., "SENSEX")
+            strike: Strike price (e.g., 84500)
+            option_type: CE or PE
+            expiry_date_str: Expiry date (e.g., "11-Dec-2025")
+        
+        Returns:
+            Zerodha trading symbol or None if not found
+        """
+        try:
+            from webapp.api.eod_monitor import construct_nse_option_symbol
+            
+            # Construct our symbol format
+            constructed_symbol = construct_nse_option_symbol(
+                symbol=symbol,
+                strike=strike,
+                option_type=option_type,
+                expiry_date_str=expiry_date_str
+            )
+            
+            if not constructed_symbol:
+                logger.warning(f"Failed to construct symbol for {symbol} {strike} {option_type}")
+                return None
+            
+            # Determine exchange (NFO or BFO)
+            symbol_upper = symbol.upper().replace(".NS", "")
+            is_bse = symbol_upper in ['SENSEX', 'BANKEX', 'SENSEX50']
+            exchange = "BFO" if is_bse else "NFO"
+            
+            # Get instruments for that exchange
+            instruments = self.get_instruments(exchange)
+            
+            # Try exact match first
+            for inst in instruments:
+                if inst.get('tradingsymbol') == constructed_symbol:
+                    logger.info(f"Found exact match: {constructed_symbol}")
+                    return inst.get('tradingsymbol')
+            
+            # Try partial match (case-insensitive)
+            constructed_upper = constructed_symbol.upper()
+            for inst in instruments:
+                tradingsymbol = inst.get('tradingsymbol', '').upper()
+                if tradingsymbol == constructed_upper:
+                    logger.info(f"Found case-insensitive match: {inst.get('tradingsymbol')}")
+                    return inst.get('tradingsymbol')
+            
+            # Try matching by underlying, strike, and type
+            strike_int = int(round(float(strike)))
+            opt_type = option_type.upper()
+            for inst in instruments:
+                inst_symbol = inst.get('tradingsymbol', '').upper()
+                # Check if contains underlying, strike, and type
+                if (symbol_upper in inst_symbol and 
+                    str(strike_int) in inst_symbol and 
+                    opt_type in inst_symbol):
+                    logger.info(f"Found partial match: {inst.get('tradingsymbol')} (searching for {constructed_symbol})")
+                    return inst.get('tradingsymbol')
+            
+            logger.warning(f"Could not resolve option symbol: {constructed_symbol} in {exchange}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error resolving option symbol: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            return None
     
     # =========================================================================
     # UTILITY METHODS

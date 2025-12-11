@@ -4,16 +4,20 @@ Strategy Analytics API
 Endpoints for strategy performance tracking and comparison.
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Dict, Optional
 from pydantic import BaseModel
 from pathlib import Path
 import sys
+from datetime import datetime, timedelta
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from utils.performance_tracker import StrategyPerformanceTracker, TradeResult
+from webapp.database import get_db, User
+from webapp.api.auth_api import get_current_user
+from webapp.api.paper_trading import load_trades
 
 router = APIRouter()
 
@@ -258,6 +262,116 @@ async def get_strategy_leaderboard():
         return {
             "success": True,
             "leaderboard": leaderboard
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/recent-activity")
+async def get_recent_activity(
+    days: int = 7,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get recent trading activity for dashboard
+    
+    Returns recent trades (open and closed) sorted by entry date
+    """
+    try:
+        from webapp.api.paper_trading import load_trades
+        from datetime import datetime, timedelta
+        
+        trades = load_trades(current_user.id)
+        
+        # Filter to recent trades (last N days)
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        recent_trades = []
+        for trade in trades:
+            try:
+                entry_date = datetime.strptime(trade.get('entry_date', ''), '%Y-%m-%d %H:%M:%S')
+                if entry_date >= cutoff_date:
+                    recent_trades.append(trade)
+            except:
+                continue
+        
+        # Sort by entry date (newest first)
+        recent_trades.sort(key=lambda x: x.get('entry_date', ''), reverse=True)
+        
+        return {
+            "success": True,
+            "trades": recent_trades[:50],  # Limit to 50 most recent
+            "count": len(recent_trades)
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+@router.get("/pnl-chart")
+async def get_pnl_chart(
+    days: int = 30,
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Get P&L chart data for dashboard
+    
+    Returns cumulative P&L over time for Chart.js
+    """
+    try:
+        from webapp.api.paper_trading import load_trades
+        from datetime import datetime, timedelta
+        
+        trades = load_trades(current_user.id)
+        
+        # Filter to closed trades in last N days
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        closed_trades = []
+        for trade in trades:
+            if trade.get('status') != 'closed':
+                continue
+            
+            try:
+                exit_date = datetime.strptime(trade.get('exit_date', ''), '%Y-%m-%d %H:%M:%S')
+                if exit_date >= cutoff_date:
+                    closed_trades.append(trade)
+            except:
+                continue
+        
+        # Sort by exit date
+        closed_trades.sort(key=lambda x: x.get('exit_date', ''))
+        
+        # Calculate cumulative P&L
+        cumulative_pnl = 0
+        labels = []
+        data = []
+        
+        for trade in closed_trades:
+            net_pnl = float(trade.get('net_pnl', 0) or 0)
+            cumulative_pnl += net_pnl
+            
+            exit_date = trade.get('exit_date', '')
+            try:
+                # Format date for chart
+                date_obj = datetime.strptime(exit_date, '%Y-%m-%d %H:%M:%S')
+                labels.append(date_obj.strftime('%Y-%m-%d'))
+            except:
+                labels.append(exit_date.split(' ')[0] if ' ' in exit_date else exit_date)
+            
+            data.append(round(cumulative_pnl, 2))
+        
+        return {
+            "success": True,
+            "data": {
+                "labels": labels,
+                "datasets": [{
+                    "label": "Cumulative P&L",
+                    "data": data,
+                    "borderColor": "rgb(75, 192, 192)",
+                    "backgroundColor": "rgba(75, 192, 192, 0.2)",
+                    "tension": 0.1
+                }]
+            }
         }
     except Exception as e:
         return {"success": False, "error": str(e)}

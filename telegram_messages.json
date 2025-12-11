@@ -1,0 +1,70 @@
+[
+  {
+    "message_id": 184702,
+    "channel_name": "BANKNIFTY NIFTY INTRADAY STOCK OPTIONS",
+    "channel_id": -1001615795252,
+    "timestamp": "2025-12-10 09:27:54",
+    "date": "2025-12-10 03:57:03",
+    "text": "**BUY ADANIENSOL 990 CE ABOVE 30\n\nTARGET :- 34 / 40\n\nSL :- PAID\n\nDECEMBER EXPIRY**",
+    "media_type": null,
+    "links": [],
+    "views": 1,
+    "forwards": 0,
+    "is_reply": false,
+    "reply_to_msg_id": null,
+    "posted_at": "2025-12-10T03:57:03+00:00",
+    "received_at": "2025-12-10T03:57:54.574713+00:00",
+    "lag_seconds": 51.574713,
+    "signal": {
+      "action": "BUY",
+      "symbol": "ADANIENSOL",
+      "strike": 990.0,
+      "option_type": "CE",
+      "trigger_type": "ABOVE",
+      "trigger_price": 30.0,
+      "targets": [
+        34.0,
+        40.0
+      ],
+      "stop_loss": "PAID",
+      "expiry_month": "DECEMBER"
+    },
+    "option_ltp": null,
+    "expiry_resolved": null,
+    "webapp_post_status": 200
+  },
+  {
+    "message_id": 184703,
+    "channel_name": "BANKNIFTY NIFTY INTRADAY STOCK OPTIONS",
+    "channel_id": -1001615795252,
+    "timestamp": "2025-12-10 09:28:54",
+    "date": "2025-12-10 03:58:10",
+    "text": "**BUY SENSEX 84500 CE ABOVE 470\n\nTARGET :- 520 / 620\n\nSL :- PAID\n\n11 DECEMBER**",
+    "media_type": null,
+    "links": [],
+    "views": 1,
+    "forwards": 0,
+    "is_reply": false,
+    "reply_to_msg_id": null,
+    "posted_at": "2025-12-10T03:58:10+00:00",
+    "received_at": "2025-12-10T03:58:54.685883+00:00",
+    "lag_seconds": 44.685883,
+    "signal": {
+      "action": "BUY",
+      "symbol": "SENSEX",
+      "strike": 84500.0,
+      "option_type": "CE",
+      "trigger_type": "ABOVE",
+      "trigger_price": 470.0,
+      "targets": [
+        520.0,
+        620.0
+      ],
+      "stop_loss": "PAID",
+      "expiry_month": null
+    },
+    "option_ltp": null,
+    "expiry_resolved": null,
+    "webapp_post_status": 200
+  }
+]

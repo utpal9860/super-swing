@@ -4,16 +4,27 @@ Authentication utilities for user management
 from datetime import datetime, timedelta
 from typing import Optional
 from passlib.context import CryptContext
+from passlib.hash import bcrypt_sha256
 from jose import JWTError, jwt
 import secrets
+import os
 
 # Security configuration
-SECRET_KEY = secrets.token_urlsafe(32)  # Generate a random secret key
+# Use fixed secret from environment when available to keep tokens valid across restarts
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+if not SECRET_KEY:
+    import warnings
+    warnings.warn(
+        "JWT_SECRET_KEY not set in environment! Tokens will be invalid after server restart. "
+        "Set JWT_SECRET_KEY in .env file for persistent authentication."
+    )
+    SECRET_KEY = secrets.token_urlsafe(32)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
 # Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Use bcrypt_sha256 to avoid bcrypt's 72-byte password limit while keeping bcrypt for legacy hashes
+pwd_context = CryptContext(schemes=["bcrypt_sha256", "bcrypt"], deprecated="auto")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -40,7 +51,8 @@ def get_password_hash(password: str) -> str:
     Returns:
         Hashed password string
     """
-    return pwd_context.hash(password)
+    # Explicitly use bcrypt_sha256 to avoid bcrypt's 72-byte limit
+    return bcrypt_sha256.hash(password)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

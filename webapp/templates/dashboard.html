@@ -189,7 +189,16 @@ async function fetchWithAuth(url, options = {}) {
         ...options.headers,
         'Authorization': `Bearer ${authToken}`
     };
-    return fetch(url, options);
+    const response = await fetch(url, options);
+    
+    // Handle 401 Unauthorized - redirect to login
+    if (response.status === 401) {
+        localStorage.removeItem('auth_token');
+        window.location.href = '/login';
+        throw new Error('Unauthorized - please login again');
+    }
+    
+    return response;
 }
 
 // Dashboard functionality
@@ -241,25 +250,39 @@ async function loadDashboardData() {
 }
 
 function updateSummaryCards(summary) {
-    document.getElementById('net-pnl').textContent = `₹${summary.net_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
-    document.getElementById('total-trades').textContent = summary.total_trades;
-    document.getElementById('open-trades').textContent = summary.open_trades;
-    document.getElementById('closed-trades').textContent = summary.closed_trades;
-    document.getElementById('win-rate').textContent = `${summary.win_rate}%`;
-    document.getElementById('winning-trades').textContent = summary.winning_trades;
-    document.getElementById('losing-trades').textContent = summary.losing_trades;
-    document.getElementById('active-capital').textContent = `₹${summary.total_invested.toLocaleString('en-IN')}`;
+    const netPnl = Number(summary?.net_pnl ?? 0);
+    const totalTrades = Number(summary?.total_trades ?? 0);
+    const openTrades = Number(summary?.open_trades ?? 0);
+    const closedTrades = Number(summary?.closed_trades ?? 0);
+    const winRate = Number(summary?.win_rate ?? 0);
+    const winningTrades = Number(summary?.winning_trades ?? 0);
+    const losingTrades = Number(summary?.losing_trades ?? 0);
+    const totalInvested = Number(summary?.total_invested ?? 0);
+    const avgWin = Number(summary?.avg_win ?? 0);
+    const avgLoss = Number(summary?.avg_loss ?? 0);
+    const profitFactor = summary?.profit_factor ?? '0.00';
+    const expectancy = Number(summary?.expectancy ?? 0);
+    const totalBrokerage = Number(summary?.total_brokerage ?? 0);
+    const grossPnl = Number(summary?.gross_pnl ?? 0);
+
+    document.getElementById('net-pnl').textContent = `₹${netPnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+    document.getElementById('total-trades').textContent = totalTrades;
+    document.getElementById('open-trades').textContent = openTrades;
+    document.getElementById('closed-trades').textContent = closedTrades;
+    document.getElementById('win-rate').textContent = `${winRate}%`;
+    document.getElementById('winning-trades').textContent = winningTrades;
+    document.getElementById('losing-trades').textContent = losingTrades;
+    document.getElementById('active-capital').textContent = `₹${totalInvested.toLocaleString('en-IN')}`;
     
-    document.getElementById('avg-win').textContent = `₹${summary.avg_win.toLocaleString('en-IN')}`;
-    document.getElementById('avg-loss').textContent = `₹${summary.avg_loss.toLocaleString('en-IN')}`;
-    document.getElementById('profit-factor').textContent = summary.profit_factor || '0.00';
-    document.getElementById('expectancy').textContent = `₹${summary.expectancy.toLocaleString('en-IN')}`;
-    document.getElementById('total-brokerage').textContent = `₹${summary.total_brokerage.toLocaleString('en-IN')}`;
-    document.getElementById('gross-pnl').textContent = `₹${summary.gross_pnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
+    document.getElementById('avg-win').textContent = `₹${avgWin.toLocaleString('en-IN')}`;
+    document.getElementById('avg-loss').textContent = `₹${avgLoss.toLocaleString('en-IN')}`;
+    document.getElementById('profit-factor').textContent = profitFactor || '0.00';
+    document.getElementById('expectancy').textContent = `₹${expectancy.toLocaleString('en-IN')}`;
+    document.getElementById('total-brokerage').textContent = `₹${totalBrokerage.toLocaleString('en-IN')}`;
+    document.getElementById('gross-pnl').textContent = `₹${grossPnl.toLocaleString('en-IN', {minimumFractionDigits: 2})}`;
     
-    // Update P&L change color
     const pnlChange = document.getElementById('pnl-change');
-    const changeClass = summary.net_pnl >= 0 ? 'text-success' : 'text-danger';
+    const changeClass = netPnl >= 0 ? 'text-success' : 'text-danger';
     pnlChange.className = `card-change ${changeClass}`;
 }
 
